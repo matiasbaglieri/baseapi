@@ -6,6 +6,7 @@ from core.init_db import init_db, get_db
 from core.utils import parse_json_env_var
 import os
 from dotenv import load_dotenv
+import uvicorn
 
 # Load environment variables
 load_dotenv()
@@ -39,7 +40,6 @@ app.include_router(base_router)
 app.include_router(user_router)
 
 if __name__ == "__main__":
-    import uvicorn
     
     # Initialize database
     init_db()
