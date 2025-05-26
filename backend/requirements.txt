@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+pydantic[email]
+sqlalchemy<2.0
+mysqlclient
+python-dotenv
+bcrypt
+requests
+mysql-connector-python
