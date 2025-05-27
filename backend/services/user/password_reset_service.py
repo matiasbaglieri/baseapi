@@ -8,6 +8,10 @@ import secrets
 from tasks.email_tasks import send_email
 from core.config import settings
 from passlib.context import CryptContext
+import logging
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 # Password hashing context
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -83,6 +87,7 @@ class PasswordResetService:
             
             # Generate reset link
             reset_link = f"{settings.FRONTEND_URL}/reset-password?token={token}"
+            logger.info(f"Generated password reset link for user {user.email}: {reset_link}")
             
             # Send password reset email
             send_email.delay(
