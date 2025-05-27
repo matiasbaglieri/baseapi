@@ -7,7 +7,8 @@ from sqlalchemy import func, and_
 from tasks.email_tasks import send_email
 from schemas.user import LoginRequest
 from .session_service import SessionService
-import secrets
+from core.jwt import JWTManager
+from core.roles import UserRole
 from datetime import datetime, timedelta
 
 # Password hashing context
@@ -28,7 +29,7 @@ class LoginService:
             user_agent (str, optional): User agent string of the client
             
         Returns:
-            dict: Login response with user data and session token
+            dict: Login response with user data and JWT tokens
             
         Raises:
             HTTPException: If authentication fails or other errors occur
@@ -69,22 +70,36 @@ class LoginService:
                 existing_session.last_activity = func.now()
                 existing_session.ip_address = ip_address
                 existing_session.user_agent = user_agent
-                session_token = existing_session.token
+                
+                # Get tokens from existing session
+                access_token = existing_session.access_token
+                refresh_token = existing_session.refresh_token
                 expires_at = existing_session.expires_at
             else:
-                # Create new session
-                session_token = secrets.token_urlsafe(32)
-                expires_at = datetime.utcnow() + timedelta(days=30)  # 30 days session
+                # Create new JWT tokens
+                tokens = JWTManager.create_tokens_response(
+                    user_id=user.id,
+                    email=user.email,
+                    role=UserRole(user.role)
+                )
                 
+                # Calculate expiration time
+                expires_at = datetime.utcnow() + timedelta(days=7)  # 7 days for refresh token
+                
+                # Create new session
                 new_session = SessionModel(
                     user_id=user.id,
-                    token=session_token,
+                    access_token=tokens["access_token"],
+                    refresh_token=tokens["refresh_token"],
+                    token_type=tokens["token_type"],
                     ip_address=ip_address,
                     user_agent=user_agent,
                     expires_at=expires_at
                 )
                 
                 self.db.add(new_session)
+                access_token = tokens["access_token"]
+                refresh_token = tokens["refresh_token"]
             
             self.db.commit()
             
@@ -103,11 +118,14 @@ class LoginService:
                     "email": user.email,
                     "first_name": user.first_name,
                     "last_name": user.last_name,
-                    "is_verified": user.is_verified
+                    "is_verified": user.is_verified,
+                    "role": user.role
                 },
-                "session": {
-                    "token": session_token,
-                    "expires_at": expires_at.isoformat()
+                "tokens": {
+                    "access_token": access_token,
+                    "refresh_token": refresh_token,
+                    "token_type": "bearer",
+                    "expires_in": 900  # 15 minutes in seconds
                 }
             }
         except HTTPException:

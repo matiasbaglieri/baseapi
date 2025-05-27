@@ -1,33 +1,193 @@
 import os
 from dotenv import load_dotenv
+from datetime import timedelta
+from pydantic_settings import BaseSettings
+from pydantic import Field, validator
+from typing import Optional, Dict, Any, List
 
 # Load environment variables
 load_dotenv()
 
-class Settings:
-    # Celery settings
-    CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
-    CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/0")
-    
+class Settings(BaseSettings):
+    # Server settings
+    HOST: str = Field(
+        default="0.0.0.0",
+        description="Server host"
+    )
+    PORT: int = Field(
+        default=8000,
+        description="Server port"
+    )
+
     # Database settings
-    DATABASE_URL = os.getenv("DATABASE_URL", "mysql://root:root@localhost/baseapi")
+    MYSQL_USER: str = Field(
+        default="root",
+        description="MySQL username"
+    )
+    MYSQL_PASSWORD: str = Field(
+        default="",
+        description="MySQL password"
+    )
+    MYSQL_HOST: str = Field(
+        default="localhost",
+        description="MySQL host"
+    )
+    MYSQL_PORT: str = Field(
+        default="3306",
+        description="MySQL port"
+    )
+    MYSQL_DATABASE: str = Field(
+        default="baseapi",
+        description="MySQL database name"
+    )
+    
+    # CORS settings
+    CORS_ORIGINS: List[str] = Field(
+        default=["*"],
+        description="CORS origins"
+    )
+    CORS_CREDENTIALS: bool = Field(
+        default=True,
+        description="CORS credentials"
+    )
+    CORS_METHODS: List[str] = Field(
+        default=["*"],
+        description="CORS methods"
+    )
+    CORS_HEADERS: List[str] = Field(
+        default=["*"],
+        description="CORS headers"
+    )
+    
+    # Celery settings
+    CELERY_BROKER_URL: str = Field(
+        default="redis://localhost:6379/0",
+        description="Celery broker URL"
+    )
+    CELERY_RESULT_BACKEND: str = Field(
+        default="redis://localhost:6379/0",
+        description="Celery result backend"
+    )
     
     # Email settings
-    SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
-    SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
-    SMTP_USER = os.getenv("SMTP_USER", "")
-    SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
+    SMTP_TLS: bool = Field(
+        default=True,
+        description="SMTP TLS"
+    )
+    SMTP_PORT: int = Field(
+        default=587,
+        description="SMTP port"
+    )
+    SMTP_HOST: str = Field(
+        default="",
+        description="SMTP host"
+    )
+    SMTP_USER: str = Field(
+        default="",
+        description="SMTP user"
+    )
+    SMTP_PASSWORD: str = Field(
+        default="",
+        description="SMTP password"
+    )
+    EMAILS_FROM_EMAIL: str = Field(
+        default="",
+        description="From email"
+    )
+    EMAILS_FROM_NAME: str = Field(
+        default="",
+        description="From name"
+    )
     
     # Session settings
-    SESSION_EXPIRY_DAYS = int(os.getenv("SESSION_EXPIRY_DAYS", "30"))
+    SESSION_EXPIRY_DAYS: int = Field(
+        default=7,
+        description="Session expiry days"
+    )
     
     # Security settings
-    SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-here")
-    ALGORITHM = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES = 30
+    SECRET_KEY: str = Field(
+        default="your-secret-key",
+        description="Secret key"
+    )
+    BACKEND_CORS_ORIGINS: List[str] = Field(
+        default=["*"],
+        description="Backend CORS origins"
+    )
+    
+    # API settings
+    API_V1_STR: str = Field(
+        default="/api/v1",
+        description="API version string"
+    )
+    PROJECT_NAME: str = Field(
+        default="BaseAPI",
+        description="Project name"
+    )
+    
+    # JWT settings
+    JWT_SECRET_KEY: str = Field(
+        default="your-jwt-secret-key",
+        description="JWT secret key"
+    )
+    JWT_ALGORITHM: str = Field(
+        default="HS256",
+        description="JWT algorithm"
+    )
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(
+        default=15,
+        description="Access token expiry minutes"
+    )
+    REFRESH_TOKEN_EXPIRE_DAYS: int = Field(
+        default=7,
+        description="Refresh token expiry days"
+    )
+    JWT_ISSUER: str = Field(
+        default="baseapi",
+        description="JWT issuer"
+    )
+    JWT_AUDIENCE: str = Field(
+        default="baseapi",
+        description="JWT audience"
+    )
+    JWT_LEEWAY: int = Field(
+        default=0,
+        description="JWT leeway"
+    )
+    JWT_TOKEN_TYPE_ACCESS: str = Field(
+        default="access",
+        description="JWT access token type"
+    )
+    JWT_TOKEN_TYPE_REFRESH: str = Field(
+        default="refresh",
+        description="JWT refresh token type"
+    )
+
+    @property
+    def JWT_ACCESS_TOKEN_EXPIRE(self) -> timedelta:
+        """Get access token expiration time."""
+        return timedelta(minutes=self.ACCESS_TOKEN_EXPIRE_MINUTES)
+
+    @property
+    def JWT_REFRESH_TOKEN_EXPIRE(self) -> timedelta:
+        """Get refresh token expiration time."""
+        return timedelta(days=self.REFRESH_TOKEN_EXPIRE_DAYS)
     
     # Frontend settings
-    FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
+    FRONTEND_URL: str = Field(
+        default="http://localhost:3000",
+        description="Frontend URL"
+    )
+
+    @validator("CORS_ORIGINS", "CORS_METHODS", "CORS_HEADERS", "BACKEND_CORS_ORIGINS", pre=True)
+    def parse_list(cls, v):
+        if isinstance(v, str):
+            return [i.strip() for i in v.strip("[]").split(",")]
+        return v
+
+    class Config:
+        env_file = ".env"
+        case_sensitive = True
 
 # Create settings instance
 settings = Settings() 

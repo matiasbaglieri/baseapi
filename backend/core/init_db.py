@@ -1,26 +1,22 @@
-from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
-import os
-from dotenv import load_dotenv
+from .config import settings
+import logging
 
-# Load environment variables
-load_dotenv()
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-# Database configuration
-MYSQL_USER = os.getenv("MYSQL_USER", "root")
-MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD", "")
-MYSQL_HOST = os.getenv("MYSQL_HOST", "localhost")
-MYSQL_PORT = os.getenv("MYSQL_PORT", "3306")
-MYSQL_DATABASE = os.getenv("MYSQL_DATABASE", "baseapi")
-
-SQLALCHEMY_DATABASE_URL = f"mysql://{MYSQL_USER}:{MYSQL_PASSWORD}@{MYSQL_HOST}:{MYSQL_PORT}/{MYSQL_DATABASE}"
+# Create database URL
+DATABASE_URL = f"mysql://{settings.MYSQL_USER}:{settings.MYSQL_PASSWORD}@{settings.MYSQL_HOST}:{settings.MYSQL_PORT}/{settings.MYSQL_DATABASE}"
 
 # Create SQLAlchemy engine
 engine = create_engine(
-    SQLALCHEMY_DATABASE_URL,
+    DATABASE_URL,
     pool_pre_ping=True,
-    pool_recycle=3600
+    pool_recycle=3600,
+    echo=False
 )
 
 # Create SessionLocal class
@@ -30,7 +26,10 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 def get_db():
-    """Dependency to get DB session."""
+    """
+    Dependency function to get database session.
+    Yields a database session and ensures it's closed after use.
+    """
     db = SessionLocal()
     try:
         yield db
@@ -38,14 +37,34 @@ def get_db():
         db.close()
 
 def init_db():
-    """Initialize the database, creating all tables."""
+    """
+    Initialize the database by creating all tables.
+    """
     try:
-        # Import all models here to ensure they are registered with Base
-        from models import User, PasswordReset, Session
+        # Import all models here to ensure they are registered with Base.metadata
+        from models.user import User
+        from models.session import Session
+        from models.password_reset import PasswordReset
         
-        # Create all tables
-        Base.metadata.create_all(bind=engine)
-        print("Database tables created successfully!")
+        # Create tables in the correct order
+        Base.metadata.create_all(bind=engine, tables=[
+            User.__table__,
+            Session.__table__,
+            PasswordReset.__table__
+        ])
+        logger.info("Database tables created successfully")
     except Exception as e:
-        print(f"Error creating database tables: {e}")
+        logger.error(f"Error creating database tables: {str(e)}")
+        raise
+
+def drop_db():
+    """
+    Drop all tables from the database.
+    Use with caution!
+    """
+    try:
+        Base.metadata.drop_all(bind=engine)
+        logger.info("Database tables dropped successfully")
+    except Exception as e:
+        logger.error(f"Error dropping database tables: {str(e)}")
         raise 

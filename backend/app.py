@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from controllers.base import router as base_router
 from controllers.user import router as user_router
-from core.init_db import  get_db
+from core.init_db import init_db, get_db,drop_db
 from core.utils import parse_json_env_var
 from core.celery_app import celery_app, init_celery, shutdown_celery
 import os
@@ -42,6 +42,8 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("Starting up FastAPI application...")
     init_celery()
+    drop_db()
+    init_db()  # Initialize database tables
     
     yield
     

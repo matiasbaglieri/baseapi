@@ -6,9 +6,10 @@ from passlib.context import CryptContext
 from sqlalchemy import func
 from tasks.email_tasks import send_email
 from schemas.user import RegisterRequest
-from .session_service import SessionService
-import secrets
+from core.jwt import JWTManager
+from core.roles import UserRole
 from datetime import datetime, timedelta
+import secrets
 
 # Password hashing context
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -16,7 +17,6 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 class RegisterService:
     def __init__(self, db: Session):
         self.db = db
-        self.session_service = SessionService(db)
 
     def register_user(self, data: RegisterRequest, ip_address: str = None, user_agent: str = None) -> dict:
         """
@@ -28,43 +28,51 @@ class RegisterService:
             user_agent (str, optional): User agent string of the client
             
         Returns:
-            dict: Registration response with user data and session token
+            dict: Registration response with user data and JWT tokens
             
         Raises:
-            HTTPException: If email already exists or other errors occur
+            HTTPException: If registration fails or other errors occur
         """
         try:
             # Check if user already exists
             existing_user = self.db.query(User).filter(User.email == data.email).first()
+            print("existing_user", existing_user)
             if existing_user:
                 raise HTTPException(
                     status_code=400,
                     detail="Email already registered"
                 )
             
-            # Create new user
+            # Hash password
             hashed_password = pwd_context.hash(data.password)
+            
+            # Create new user
             new_user = User(
                 email=data.email,
                 password=hashed_password,
                 first_name=data.first_name,
-                last_name=data.last_name
+                last_name=data.last_name,
+                role=UserRole.USER
             )
             
             self.db.add(new_user)
-            self.db.commit()
-            self.db.refresh(new_user)
-            
-            # Clean up any existing expired sessions for this user
-            self.session_service.cleanup_expired_sessions(new_user.id)
-            
+            self.db.flush()  # Flush to get the user ID
+            print("new_user", new_user)
+            # Create JWT tokens
+            tokens = JWTManager.create_tokens_response(
+                user_id=new_user.id,
+                email=new_user.email,
+                role=UserRole.USER
+            )
+            print("tokens", tokens)
             # Create new session
-            session_token = secrets.token_urlsafe(32)
             expires_at = datetime.utcnow() + timedelta(days=30)  # 30 days session
             
             new_session = SessionModel(
                 user_id=new_user.id,
-                token=session_token,
+                access_token=tokens["access_token"],
+                refresh_token=tokens["refresh_token"],
+                token_type=tokens["token_type"],
                 ip_address=ip_address,
                 user_agent=user_agent,
                 expires_at=expires_at
@@ -87,12 +95,11 @@ class RegisterService:
                     "id": new_user.id,
                     "email": new_user.email,
                     "first_name": new_user.first_name,
-                    "last_name": new_user.last_name
+                    "last_name": new_user.last_name,
+                    "is_verified": new_user.is_verified,
+                    "role": new_user.role
                 },
-                "session": {
-                    "token": session_token,
-                    "expires_at": expires_at.isoformat()
-                }
+                "tokens": tokens
             }
         except HTTPException:
             raise
