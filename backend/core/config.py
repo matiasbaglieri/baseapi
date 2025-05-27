@@ -163,6 +163,11 @@ class Settings(BaseSettings):
         description="JWT refresh token type"
     )
 
+    # Mailgun Settings
+    MAILGUN_API_KEY: str
+    MAILGUN_DOMAIN: str
+    MAILGUN_FROM_EMAIL: str = "noreply@your-domain.com"
+
     @property
     def JWT_ACCESS_TOKEN_EXPIRE(self) -> timedelta:
         """Get access token expiration time."""

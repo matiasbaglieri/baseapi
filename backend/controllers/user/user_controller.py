@@ -5,7 +5,6 @@ from core.database import get_db
 from models.user import User
 from passlib.context import CryptContext
 from sqlalchemy import func, and_
-from tasks.email_tasks import send_email
 from services.user import RegisterService, LoginService, PasswordResetService, UserService
 from services.jwt.refresh_token_service import RefreshTokenService
 from core.jwt import JWTManager

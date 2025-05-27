@@ -1,4 +1,4 @@
-from mailgun import Mailgun
+import requests
 from core.config import settings
 from core.logger import logger
 import os
@@ -9,15 +9,14 @@ load_dotenv()
 
 class MailService:
     def __init__(self):
-        self.mailgun = Mailgun(
-            api_key=os.getenv("MAILGUN_API_KEY"),
-            domain=os.getenv("MAILGUN_DOMAIN")
-        )
-        self.from_email = os.getenv("MAILGUN_FROM_EMAIL", f"noreply@{os.getenv('MAILGUN_DOMAIN')}")
+        self.api_key = settings.MAILGUN_API_KEY
+        self.domain = settings.MAILGUN_DOMAIN
+        self.from_email = settings.MAILGUN_FROM_EMAIL
+        self.api_url = f"https://api.mailgun.net/v3/{self.domain}/messages"
 
     def send_email(self, to_email: str, subject: str, body: str, html_body: str = None) -> dict:
         """
-        Send an email using Mailgun.
+        Send an email using Mailgun API.
         
         Args:
             to_email (str): Recipient email address
@@ -42,9 +41,17 @@ class MailService:
             if html_body:
                 data["html"] = html_body
 
-            response = self.mailgun.send_message(data)
+            response = requests.post(
+                self.api_url,
+                auth=("api", self.api_key),
+                data=data
+            )
+            
+            if response.status_code != 200:
+                raise Exception(f"Mailgun API error: {response.text}")
+
             logger.info(f"Email sent successfully to {to_email}")
-            return response
+            return response.json()
 
         except Exception as e:
             logger.error(f"Failed to send email to {to_email}: {str(e)}")
