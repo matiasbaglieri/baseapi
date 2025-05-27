@@ -2,11 +2,18 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from controllers.base import router as base_router
 from controllers.user import router as user_router
-from core.init_db import init_db, get_db
+from core.init_db import  get_db
 from core.utils import parse_json_env_var
+from core.celery_app import celery_app, init_celery, shutdown_celery
 import os
-from dotenv import load_dotenv
 import uvicorn
+from dotenv import load_dotenv
+from contextlib import asynccontextmanager
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Load environment variables
 load_dotenv()
@@ -26,7 +33,24 @@ CORS_CREDENTIALS = os.getenv("CORS_CREDENTIALS", "true").lower() == "true"
 CORS_METHODS = parse_json_env_var("CORS_METHODS", ["*"])
 CORS_HEADERS = parse_json_env_var("CORS_HEADERS", DEFAULT_CORS_HEADERS)
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Lifespan context manager for FastAPI application.
+    Handles startup and shutdown events.
+    """
+    # Startup
+    logger.info("Starting up FastAPI application...")
+    init_celery()
+    
+    yield
+    
+    # Shutdown
+    logger.info("Shutting down FastAPI application...")
+    shutdown_celery()
+    logger.info("Shutdown complete")
+
+app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -36,14 +60,11 @@ app.add_middleware(
     allow_headers=CORS_HEADERS,
 )
 
+# Include routers
 app.include_router(base_router)
 app.include_router(user_router)
 
 if __name__ == "__main__":
-    
-    # Initialize database
-    init_db()
-    
     # Server Configuration
     HOST = os.getenv("HOST", "0.0.0.0")
     PORT = int(os.getenv("PORT", "8000"))
