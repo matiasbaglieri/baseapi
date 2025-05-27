@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from fastapi import HTTPException
+from fastapi import HTTPException, status
 from models.user import User
 from models.session import Session as SessionModel
 from passlib.context import CryptContext
@@ -10,6 +10,14 @@ from .session_service import SessionService
 from core.jwt import JWTManager
 from core.roles import UserRole
 from datetime import datetime, timedelta
+import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+# Get refresh token expiration days from environment
+REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))
 
 # Password hashing context
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -39,14 +47,14 @@ class LoginService:
             user = self.db.query(User).filter(User.email == data.email).first()
             if not user:
                 raise HTTPException(
-                    status_code=401,
+                    status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Invalid email or password"
                 )
             
-            # Verify password
-            if not pwd_context.verify(data.password, user.password):
+            # Verify password using User model's method
+            if not user.verify_password(data.password):
                 raise HTTPException(
-                    status_code=401,
+                    status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Invalid email or password"
                 )
             
@@ -84,14 +92,14 @@ class LoginService:
                 )
                 
                 # Calculate expiration time
-                expires_at = datetime.utcnow() + timedelta(days=7)  # 7 days for refresh token
+                expires_at = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
                 
                 # Create new session
                 new_session = SessionModel(
                     user_id=user.id,
                     access_token=tokens["access_token"],
                     refresh_token=tokens["refresh_token"],
-                    token_type=tokens["token_type"],
+                    token_type="bearer",
                     ip_address=ip_address,
                     user_agent=user_agent,
                     expires_at=expires_at
@@ -131,4 +139,4 @@ class LoginService:
         except HTTPException:
             raise
         except Exception as e:
-            raise HTTPException(status_code=400, detail=str(e)) 
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)) 

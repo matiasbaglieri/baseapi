@@ -3,6 +3,10 @@ from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from core.init_db import Base
 from core.roles import UserRole
+from passlib.context import CryptContext
+
+# Password hashing context
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 class User(Base):
     __tablename__ = "users"
@@ -25,6 +29,28 @@ class User(Base):
     # Relationships
     sessions = relationship("Session", back_populates="user", cascade="all, delete-orphan")
     password_resets = relationship("PasswordReset", back_populates="user", cascade="all, delete-orphan")
+
+    def set_password(self, password: str) -> None:
+        """
+        Hash and set the user's password.
+        
+        Args:
+            password (str): Plain text password to hash and set
+        """
+        self.password = pwd_context.hash(password)
+
+    def verify_password(self, password: str) -> bool:
+        """
+        Verify the user's password.
+        
+        Args:
+            password (str): Plain text password to verify
+            
+        Returns:
+            bool: True if password matches, False otherwise
+        """
+        # Verify the password against the stored hash
+        return pwd_context.verify(password, self.password)
 
     def __repr__(self):
         return f"<User {self.email}>" 

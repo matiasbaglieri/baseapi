@@ -1,15 +1,22 @@
 from sqlalchemy.orm import Session
-from fastapi import HTTPException
+from fastapi import HTTPException, status
 from models.user import User
 from models.session import Session as SessionModel
 from passlib.context import CryptContext
-from sqlalchemy import func
+from sqlalchemy import func, and_
 from tasks.email_tasks import send_email
 from schemas.user import RegisterRequest
 from core.jwt import JWTManager
 from core.roles import UserRole
 from datetime import datetime, timedelta
-import secrets
+import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+# Get refresh token expiration days from environment
+REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))
 
 # Password hashing context
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -38,38 +45,39 @@ class RegisterService:
             existing_user = self.db.query(User).filter(User.email == data.email).first()
             if existing_user:
                 raise HTTPException(
-                    status_code=400,
+                    status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Email already registered"
                 )
-            
-            # Hash password
-            hashed_password = pwd_context.hash(data.password)
             
             # Create new user
             new_user = User(
                 email=data.email,
-                password=hashed_password,
                 first_name=data.first_name,
                 last_name=data.last_name,
-                role=UserRole.USER
+                
+                role=UserRole.USER.value  # Default role
             )
+            new_user.set_password(data.password)
             
             self.db.add(new_user)
             self.db.flush()  # Flush to get the user ID
+            
             # Create JWT tokens
             tokens = JWTManager.create_tokens_response(
                 user_id=new_user.id,
                 email=new_user.email,
                 role=UserRole.USER
             )
-            # Create new session
-            expires_at = datetime.utcnow() + timedelta(days=30)  # 30 days session
             
+            # Calculate expiration time
+            expires_at = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+            
+            # Create new session
             new_session = SessionModel(
                 user_id=new_user.id,
                 access_token=tokens["access_token"],
                 refresh_token=tokens["refresh_token"],
-                token_type=tokens["token_type"],
+                token_type="bearer",
                 ip_address=ip_address,
                 user_agent=user_agent,
                 expires_at=expires_at
@@ -96,9 +104,14 @@ class RegisterService:
                     "is_verified": new_user.is_verified,
                     "role": new_user.role
                 },
-                "tokens": tokens
+                "tokens": {
+                    "access_token": tokens["access_token"],
+                    "refresh_token": tokens["refresh_token"],
+                    "token_type": "bearer",
+                    "expires_in": 900  # 15 minutes in seconds
+                }
             }
         except HTTPException:
             raise
         except Exception as e:
-            raise HTTPException(status_code=400, detail=str(e)) 
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)) 
