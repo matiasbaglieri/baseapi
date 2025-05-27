@@ -18,7 +18,8 @@ celery_app = Celery(
     include=[
         'tasks.email_tasks',
         'tasks.user_tasks',
-        'tasks.session_tasks'
+        'tasks.session_tasks',
+        'tasks.password_reset_tasks'
     ]
 )
 

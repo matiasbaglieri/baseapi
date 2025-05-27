@@ -6,7 +6,7 @@ from models.user import User
 from passlib.context import CryptContext
 from sqlalchemy import func
 from tasks.email_tasks import send_email
-from services.user import RegisterService, LoginService
+from services.user import RegisterService, LoginService, PasswordResetService
 
 # Password hashing context
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -39,31 +39,16 @@ async def register(request: Request, data: RegisterRequest, db: Session = Depend
 
 @router.post("/forgot-password")
 async def forgot_password(data: ForgotPasswordRequest, db: Session = Depends(get_db)):
-    try:
-        user = db.query(User).filter(User.email == data.email).first()
-        if user:
-            # Send password reset email asynchronously
-            send_email.delay(
-                to_email=user.email,
-                subject="Password Reset Request",
-                body="Click the link below to reset your password."
-            )
-        
-        # Always return success to prevent email enumeration
-        return {
-            "message": "If your email is registered, you will receive a password reset link.",
-            "status": "success"
-        }
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    """
+    Request a password reset.
+    """
+    password_reset_service = PasswordResetService(db)
+    return password_reset_service.create_password_reset(data.email)
 
 @router.post("/reset-password")
 async def reset_password(data: ResetPasswordRequest, db: Session = Depends(get_db)):
-    try:
-        # Dummy implementation
-        return {
-            "message": "Password has been reset.",
-            "status": "success"
-        }
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e)) 
+    """
+    Reset password using a valid token.
+    """
+    password_reset_service = PasswordResetService(db)
+    return password_reset_service.reset_password(data.token, data.new_password) 

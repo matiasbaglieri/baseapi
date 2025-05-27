@@ -14,4 +14,9 @@ beat_schedule = {
         # Run every day at midnight UTC
         'schedule': crontab(hour=0, minute=0),
     },
+    'cleanup-expired-password-resets': {
+        'task': 'cleanup_expired_password_resets',
+        # Run every hour
+        'schedule': crontab(minute=0),
+    },
 } 
