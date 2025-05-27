@@ -1,14 +1,16 @@
-.PHONY: venv install start run alembic alembic-revision alembic-upgrade alembic-downgrade celery celery-beat
+.PHONY: venv install start run alembic alembic-revision alembic-upgrade alembic-downgrade celery celery-beat clean-install
 
 venv:
 	python3 -m venv env
 
-install: venv
+clean-install: venv
 	. env/bin/activate && \
 	python3 -m pip install --upgrade pip && \
 	pip3 install setuptools wheel && \
-	pip3 install -r requirements.txt && \
-	pip3 install alembic python-dotenv passlib[bcrypt] celery redis
+	pip3 uninstall -y bcrypt passlib && \
+	pip3 install -r requirements.txt
+
+install: clean-install
 
 start run:
 	@if [ ! -f .env ]; then \

@@ -19,18 +19,16 @@ celery_app = Celery(
     "baseapi",
     broker=CELERY_BROKER_URL,
     backend=CELERY_RESULT_BACKEND,
+    include=['tasks.email_tasks', 'tasks.user_tasks']
 )
 
 def init_celery():
     """Initialize Celery configuration."""
     logger.info("Initializing Celery...")
-    celery_app.conf.update(
-        task_serializer="json",
-        accept_content=["json"],
-        result_serializer="json",
-        timezone="UTC",
-        enable_utc=True,
-    )
+    
+    # Load configuration from celeryconfig.py
+    celery_app.config_from_object('core.celeryconfig')
+    
     logger.info("Celery initialized successfully")
 
 def shutdown_celery():

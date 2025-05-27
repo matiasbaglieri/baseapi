@@ -4,7 +4,8 @@ pydantic[email]
 sqlalchemy<2.0
 mysqlclient
 python-dotenv
-bcrypt
+bcrypt==4.0.1
+passlib[bcrypt]==1.7.4
 requests
 mysql-connector-python
 alembic
