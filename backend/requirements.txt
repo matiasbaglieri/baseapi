@@ -7,3 +7,4 @@ python-dotenv
 bcrypt
 requests
 mysql-connector-python
+alembic

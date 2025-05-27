@@ -1,16 +1,51 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
+from sqlalchemy.orm import Session
 from schemas.user import LoginRequest, RegisterRequest, ForgotPasswordRequest, ResetPasswordRequest
+from core.init_db import get_db
+from models.user import User
+from passlib.context import CryptContext
+from sqlalchemy import func
+
+# Password hashing context
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 router = APIRouter(prefix="/user", tags=["user"])
 
 @router.post("/login")
-async def login(data: LoginRequest):
+async def login(data: LoginRequest, db: Session = Depends(get_db)):
     try:
-        # Dummy implementation
+        # Find user by email
+        user = db.query(User).filter(User.email == data.email).first()
+        if not user:
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid email or password"
+            )
+        
+        # Verify password
+        if not pwd_context.verify(data.password, user.password):
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid email or password"
+            )
+        
+        # Update last login
+        user.last_login = func.now()
+        db.commit()
+        
         return {
-            "message": f"User {data.email} logged in.",
-            "status": "success"
+            "message": "Login successful",
+            "status": "success",
+            "user": {
+                "id": user.id,
+                "email": user.email,
+                "first_name": user.first_name,
+                "last_name": user.last_name,
+                "is_verified": user.is_verified
+            }
         }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
