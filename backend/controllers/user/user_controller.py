@@ -11,6 +11,7 @@ from core.jwt import JWTManager
 from models.session import Session as SessionModel
 from datetime import datetime, timedelta
 from controllers.base import BaseController
+from core.roles import UserRole
 
 # Password hashing context
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -53,7 +54,7 @@ class UserController(BaseController[User]):
                 payload = JWTManager.verify_token(data.refresh_token)
                 user_id = int(payload["sub"])
                 email = payload["email"]
-                role = payload["role"]
+                role = UserRole(payload["role"])  # Convert string to UserRole enum
 
                 # Check for existing valid session
                 existing_session = db.query(SessionModel).filter(
