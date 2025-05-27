@@ -1,16 +1,26 @@
 from core.celery_app import celery_app
 from core.logger import logger
-import time
+from core.mail import mail_service
 
 @celery_app.task(name="send_email")
-def send_email(to_email: str, subject: str, body: str):
+def send_email(to_email: str, subject: str, body: str, html_body: str = None):
     """
-    Sample task to send an email.
-    In a real application, you would integrate with an email service.
+    Send an email using Mailgun service.
+    
+    Args:
+        to_email (str): Recipient email address
+        subject (str): Email subject
+        body (str): Plain text email body
+        html_body (str, optional): HTML email body
     """
-    # Simulate email sending
-    time.sleep(2)
-    logger.info(f"Sending email to {to_email}")
-    logger.info(f"Subject: {subject}")
-    logger.info(f"Body: {body}")
-    return {"status": "sent", "to": to_email} 
+    try:
+        response = mail_service.send_email(
+            to_email=to_email,
+            subject=subject,
+            body=body,
+            html_body=html_body
+        )
+        return {"status": "sent", "to": to_email, "response": response}
+    except Exception as e:
+        logger.error(f"Failed to send email to {to_email}: {str(e)}")
+        return {"status": "failed", "to": to_email, "error": str(e)} 

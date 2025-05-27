@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Request, status
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Request, status, Header
 from sqlalchemy.orm import Session
 from schemas.user import LoginRequest, RegisterRequest, ForgotPasswordRequest, ResetPasswordRequest, RefreshTokenRequest
 from core.database import get_db
@@ -6,7 +6,7 @@ from models.user import User
 from passlib.context import CryptContext
 from sqlalchemy import func, and_
 from tasks.email_tasks import send_email
-from services.user import RegisterService, LoginService, PasswordResetService
+from services.user import RegisterService, LoginService, PasswordResetService, UserService
 from services.jwt.refresh_token_service import RefreshTokenService
 from core.jwt import JWTManager
 from models.session import Session as SessionModel
@@ -14,6 +14,7 @@ from datetime import datetime, timedelta
 from controllers.base import BaseController
 from core.roles import UserRole
 from core.logger import logger
+from typing import Optional
 
 # Password hashing context
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -25,6 +26,24 @@ class UserController(BaseController[User]):
         self.setup_routes()
 
     def setup_routes(self):
+        @self.router.get("/me")
+        async def get_current_user(
+            authorization: Optional[str] = Header(None),
+            db: Session = Depends(get_db)
+        ):
+            """
+            Get current user data using JWT token.
+            """
+            if not authorization or not authorization.startswith("Bearer "):
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid authorization header"
+                )
+            
+            access_token = authorization.split(" ")[1]
+            user_service = UserService(db)
+            return user_service.get_current_user(access_token)
+
         @self.router.post("/login")
         async def login(
             request: Request,

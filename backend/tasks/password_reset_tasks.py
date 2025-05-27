@@ -15,7 +15,7 @@ def cleanup_expired_password_resets():
     db = SessionLocal()
     try:
         password_reset_service = PasswordResetService(db)
-        cleaned_count = password_reset_service.cleanup_expired_tokens()
+        cleaned_count = password_reset_service.cleanup_expired_tokens() 
         logger.info(f"Cleaned up {cleaned_count} expired password reset tokens")
         return cleaned_count
     except Exception as e:
