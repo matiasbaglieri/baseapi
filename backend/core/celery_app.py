@@ -1,48 +1,47 @@
 from celery import Celery
-import os
-from dotenv import load_dotenv
+from .config import settings
 import logging
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Load environment variables
-load_dotenv()
-
 # Celery Configuration
-CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
-CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/0")
+CELERY_BROKER_URL = settings.CELERY_BROKER_URL
+CELERY_RESULT_BACKEND = settings.CELERY_RESULT_BACKEND
 
 # Initialize Celery
 celery_app = Celery(
     "baseapi",
     broker=CELERY_BROKER_URL,
     backend=CELERY_RESULT_BACKEND,
-    include=['tasks.email_tasks', 'tasks.user_tasks']
+    include=[
+        'tasks.email_tasks',
+        'tasks.user_tasks',
+        'tasks.session_tasks'
+    ]
 )
 
 def init_celery():
-    """Initialize Celery configuration."""
-    logger.info("Initializing Celery...")
-    
-    # Load configuration from celeryconfig.py
-    celery_app.config_from_object('core.celeryconfig')
-    
-    logger.info("Celery initialized successfully")
+    """Initialize Celery with application settings."""
+    try:
+        celery_app.conf.update(
+            task_serializer='json',
+            accept_content=['json'],
+            result_serializer='json',
+            timezone='UTC',
+            enable_utc=True
+        )
+        logger.info("Celery initialized successfully")
+    except Exception as e:
+        logger.error(f"Error initializing Celery: {str(e)}")
+        raise
 
 def shutdown_celery():
-    """Shutdown Celery gracefully."""
-    logger.info("Shutting down Celery...")
+    """Cleanup Celery resources."""
     try:
-        # Close Celery connection pool
-        celery_app.control.broadcast('shutdown')
-        logger.info("Celery shutdown signal sent")
-        
-        # Close Celery connection
-        if celery_app.connection():
-            celery_app.connection().close()
-            logger.info("Celery connection closed")
+        celery_app.control.shutdown()
+        logger.info("Celery shutdown successfully")
     except Exception as e:
-        logger.error(f"Error during Celery shutdown: {str(e)}")
-    logger.info("Celery shutdown complete") 
+        logger.error(f"Error shutting down Celery: {str(e)}")
+        raise 

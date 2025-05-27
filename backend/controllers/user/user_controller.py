@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Request
 from sqlalchemy.orm import Session
 from schemas.user import LoginRequest, RegisterRequest, ForgotPasswordRequest, ResetPasswordRequest
 from core.init_db import get_db
@@ -14,20 +14,28 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 router = APIRouter(prefix="/user", tags=["user"])
 
 @router.post("/login")
-async def login(data: LoginRequest, db: Session = Depends(get_db)):
+async def login(request: Request, data: LoginRequest, db: Session = Depends(get_db)):
     """
     Authenticate and login a user.
     """
     login_service = LoginService(db)
-    return login_service.login_user(data)
+    return login_service.login_user(
+        data=data,
+        ip_address=request.client.host,
+        user_agent=request.headers.get("user-agent")
+    )
 
 @router.post("/register")
-async def register(data: RegisterRequest, db: Session = Depends(get_db)):
+async def register(request: Request, data: RegisterRequest, db: Session = Depends(get_db)):
     """
     Register a new user.
     """
     register_service = RegisterService(db)
-    return register_service.register_user(data)
+    return register_service.register_user(
+        data=data,
+        ip_address=request.client.host,
+        user_agent=request.headers.get("user-agent")
+    )
 
 @router.post("/forgot-password")
 async def forgot_password(data: ForgotPasswordRequest, db: Session = Depends(get_db)):
