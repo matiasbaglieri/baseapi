@@ -1,5 +1,6 @@
 import os
 import json
+from core.logger import logger
 
 def parse_json_env_var(var_name, default_value):
     """
@@ -18,5 +19,5 @@ def parse_json_env_var(var_name, default_value):
             return default_value
         return json.loads(value)
     except json.JSONDecodeError:
-        print(f"Warning: Could not parse {var_name}, using default value")
+        logger.warning(f"Could not parse {var_name}, using default value")
         return default_value 

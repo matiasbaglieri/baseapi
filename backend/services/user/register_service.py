@@ -36,7 +36,6 @@ class RegisterService:
         try:
             # Check if user already exists
             existing_user = self.db.query(User).filter(User.email == data.email).first()
-            print("existing_user", existing_user)
             if existing_user:
                 raise HTTPException(
                     status_code=400,
@@ -57,14 +56,12 @@ class RegisterService:
             
             self.db.add(new_user)
             self.db.flush()  # Flush to get the user ID
-            print("new_user", new_user)
             # Create JWT tokens
             tokens = JWTManager.create_tokens_response(
                 user_id=new_user.id,
                 email=new_user.email,
                 role=UserRole.USER
             )
-            print("tokens", tokens)
             # Create new session
             expires_at = datetime.utcnow() + timedelta(days=30)  # 30 days session
             

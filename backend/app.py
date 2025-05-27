@@ -42,8 +42,8 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("Starting up FastAPI application...")
     init_celery()
-    drop_db()
-    init_db()  # Initialize database tables
+    # drop_db()
+    # init_db()  # Initialize database tables
     
     yield
     

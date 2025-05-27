@@ -12,6 +12,7 @@ from models.session import Session as SessionModel
 from datetime import datetime, timedelta
 from controllers.base import BaseController
 from core.roles import UserRole
+from core.logger import logger
 
 # Password hashing context
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -54,7 +55,11 @@ class UserController(BaseController[User]):
                 payload = JWTManager.verify_token(data.refresh_token)
                 user_id = int(payload["sub"])
                 email = payload["email"]
-                role = UserRole(payload["role"])  # Convert string to UserRole enum
+                try:
+                    role = UserRole(payload["role"])  # Convert string to UserRole enum
+                except ValueError as e:
+                    logger.warning(f"Could not parse role '{payload.get('role')}', using default value: {str(e)}")
+                    role = UserRole.USER  # Default to USER role if parsing fails
 
                 # Check for existing valid session
                 existing_session = db.query(SessionModel).filter(
@@ -118,6 +123,7 @@ class UserController(BaseController[User]):
                 }
 
             except Exception as e:
+                logger.error(f"Token refresh failed: {str(e)}")
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail=str(e)

@@ -24,14 +24,11 @@ class JWTManager:
         Returns:
             Tuple containing (access_token, refresh_token)
         """
-        print("create_token_pair", user_id, email, role)
         # Create access token
         access_token = JWTManager.create_access_token(user_id, email, role)
         
         # Create refresh token
         refresh_token = JWTManager.create_refresh_token(user_id, email, role)
-        print("access_token", access_token)
-        print("refresh_token", refresh_token)
         return access_token, refresh_token
     
     @staticmethod
@@ -99,7 +96,6 @@ class JWTManager:
         Returns:
             JWT token string
         """
-        print("create_token", user_id, email, role, token_type, expires_delta)
         now = datetime.utcnow()
         expire = now + expires_delta
         
@@ -292,11 +288,8 @@ class JWTManager:
         Returns:
             Dict containing access_token and refresh_token
         """
-        print("create_tokens_response", user_id)
         
         access_token, refresh_token = JWTManager.create_token_pair(user_id, email, role)
-        print("access_token", access_token)
-        print("refresh_token", refresh_token)
         return {
             "access_token": access_token,
             "refresh_token": refresh_token,
