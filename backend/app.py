@@ -5,15 +5,11 @@ from controllers.user import router as user_router
 from core.init_db import init_db, get_db,drop_db
 from core.utils import parse_json_env_var
 from core.celery_app import celery_app, init_celery, shutdown_celery
+from core.logger import logger
 import os
 import uvicorn
 from dotenv import load_dotenv
 from contextlib import asynccontextmanager
-import logging
-
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 # Load environment variables
 load_dotenv()

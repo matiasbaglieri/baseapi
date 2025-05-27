@@ -2,12 +2,17 @@ import logging
 import sys
 from logging.handlers import RotatingFileHandler
 import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Create logs directory if it doesn't exist
 os.makedirs('logs', exist_ok=True)
 
 # Configure logging
-logger = logging.getLogger('baseapi')
+PROJECT_NAME = os.getenv("PROJECT_NAME", "baseapi")
+logger = logging.getLogger(PROJECT_NAME)
 logger.setLevel(logging.INFO)
 
 # Create formatters
