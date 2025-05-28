@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from controllers.base import router as base_router
 from controllers.user import router as user_router
+from controllers.user.email_validator_controller import router as email_validator_router
 from core.init_db import init_db, get_db,drop_db
 from core.utils import parse_json_env_var
 from core.celery_app import celery_app, init_celery, shutdown_celery
@@ -61,6 +62,7 @@ app.add_middleware(
 # Include routers
 app.include_router(base_router)
 app.include_router(user_router)
+app.include_router(email_validator_router)
 
 if __name__ == "__main__":
     # Server Configuration

@@ -1,101 +1,88 @@
-from core.celery_app import celery_app
+from celery import shared_task
+from core.mail import mail_service
 from core.logger import logger
 from core.config import settings
-from core.mail import MailService
 from sqlalchemy.orm import Session
 from core.database import SessionLocal
 from models.user import User
 from datetime import datetime, timedelta
 from sqlalchemy import and_
 
-@celery_app.task(name="send_email")
-def send_email(to_email: str, subject: str, body: str):
+@shared_task
+def send_email(to_email: str, subject: str, body: str) -> dict:
     """
-    Send an email using the mail service.
+    Send an email using Mailgun API.
+    
+    Args:
+        to_email (str): Recipient email address
+        subject (str): Email subject
+        body (str): Email body
+        
+    Returns:
+        dict: Response from Mailgun API
     """
-    try:
-        mail_service = MailService()
-        mail_service.send_email(to_email, subject, body)
-        logger.info(f"Email sent to {to_email}")
-        return {"status": "success", "to_email": to_email}
-    except Exception as e:
-        logger.error(f"Error sending email: {str(e)}")
-        return {"status": "error", "error": str(e)}
+    if not mail_service:
+        logger.error("Mail service is not properly configured. Please check your .env-local file.")
+        raise ValueError("Mail service is not properly configured")
+        
+    return mail_service.send_email(to_email, subject, body)
 
-@celery_app.task(name="send_welcome_email")
-def send_welcome_email(to_email: str, first_name: str):
+@shared_task
+def send_welcome_email(to_email: str, username: str) -> dict:
     """
-    Send welcome email to newly registered users.
+    Send a welcome email to a new user.
+    
+    Args:
+        to_email (str): Recipient email address
+        username (str): Username of the new user
+        
+    Returns:
+        dict: Response from Mailgun API
     """
-    subject = "Welcome to Our Platform!"
+    if not mail_service:
+        logger.error("Mail service is not properly configured. Please check your .env-local file.")
+        raise ValueError("Mail service is not properly configured")
+        
+    subject = "Welcome to BaseAPI!"
     body = f"""
-    Hello {first_name},
-
-    Welcome to our platform! We're excited to have you on board.
-
+    Hello {username},
+    
+    Welcome to BaseAPI! We're excited to have you on board.
+    
     Best regards,
-    The Team
+    The BaseAPI Team
     """
-    html_body = f"""
-    <h1>Welcome to Our Platform!</h1>
-    <p>Hello {first_name},</p>
-    <p>Welcome to our platform! We're excited to have you on board.</p>
-    <p>Best regards,<br>The Team</p>
-    """
-    return send_email.delay(to_email, subject, body, html_body)
+    return mail_service.send_email(to_email, subject, body)
 
-@celery_app.task(name="send_password_reset_email")
-def send_password_reset_email(to_email: str, reset_token: str):
+@shared_task
+def send_password_reset_email(to_email: str, reset_token: str) -> dict:
     """
-    Send password reset email.
+    Send a password reset email.
+    
+    Args:
+        to_email (str): Recipient email address
+        reset_token (str): Password reset token
+        
+    Returns:
+        dict: Response from Mailgun API
     """
-    try:
-        mail_service = MailService()
-        subject = "Password Reset Request"
-        body = f"""
-        Hello,
+    if not mail_service:
+        logger.error("Mail service is not properly configured. Please check your .env-local file.")
+        raise ValueError("Mail service is not properly configured")
         
-        You have requested to reset your password. Please use the following token to reset your password:
-        
-        {reset_token}
-        
-        This token will expire in 24 hours.
-        
-        If you did not request this password reset, please ignore this email.
-        
-        Best regards,
-        Your App Team
-        """
-        mail_service.send_email(to_email, subject, body)
-        logger.info(f"Password reset email sent to {to_email}")
-        return {"status": "success", "to_email": to_email}
-    except Exception as e:
-        logger.error(f"Error sending password reset email: {str(e)}")
-        return {"status": "error", "error": str(e)}
-
-@celery_app.task(name="send_verification_email")
-def send_verification_email(to_email: str, verification_token: str):
+    subject = "Password Reset Request"
+    body = f"""
+    Hello,
+    
+    You have requested to reset your password. Please use the following token:
+    
+    {reset_token}
+    
+    This token will expire in 24 hours.
+    
+    If you did not request this password reset, please ignore this email.
+    
+    Best regards,
+    The BaseAPI Team
     """
-    Send email verification email.
-    """
-    try:
-        mail_service = MailService()
-        subject = "Verify Your Email"
-        body = f"""
-        Hello,
-        
-        Thank you for registering. Please use the following token to verify your email:
-        
-        {verification_token}
-        
-        This token will expire in 24 hours.
-        
-        Best regards,
-        Your App Team
-        """
-        mail_service.send_email(to_email, subject, body)
-        logger.info(f"Verification email sent to {to_email}")
-        return {"status": "success", "to_email": to_email}
-    except Exception as e:
-        logger.error(f"Error sending verification email: {str(e)}")
-        return {"status": "error", "error": str(e)} 
+    return mail_service.send_email(to_email, subject, body) 

@@ -64,51 +64,32 @@ class LoginService:
             # Clean up expired sessions for this user
             self.session_service.cleanup_expired_sessions(user.id)
             
-            # Check for existing valid session
-            existing_session = self.db.query(SessionModel).filter(
-                and_(
-                    SessionModel.user_id == user.id,
-                    SessionModel.expires_at > datetime.utcnow(),
-                    SessionModel.is_active == True
-                )
-            ).first()
+        
+            # Create new JWT tokens
+            tokens = JWTManager.create_tokens_response(
+                user_id=user.id,
+                email=user.email,
+                role=UserRole(user.role)
+            )
             
-            if existing_session:
-                # Update existing session
-                existing_session.last_activity = func.now()
-                existing_session.ip_address = ip_address
-                existing_session.user_agent = user_agent
-                
-                # Get tokens from existing session
-                access_token = existing_session.access_token
-                refresh_token = existing_session.refresh_token
-                expires_at = existing_session.expires_at
-            else:
-                # Create new JWT tokens
-                tokens = JWTManager.create_tokens_response(
-                    user_id=user.id,
-                    email=user.email,
-                    role=UserRole(user.role)
-                )
-                
-                # Calculate expiration time
-                expires_at = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
-                
-                # Create new session
-                new_session = SessionModel(
-                    user_id=user.id,
-                    access_token=tokens["access_token"],
-                    refresh_token=tokens["refresh_token"],
-                    token_type="bearer",
-                    ip_address=ip_address,
-                    user_agent=user_agent,
-                    expires_at=expires_at
-                )
-                
-                self.db.add(new_session)
-                access_token = tokens["access_token"]
-                refresh_token = tokens["refresh_token"]
+            # Calculate expiration time
+            expires_at = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
             
+            # Create new session
+            new_session = SessionModel(
+                user_id=user.id,
+                access_token=tokens["access_token"],
+                refresh_token=tokens["refresh_token"],
+                token_type="bearer",
+                ip_address=ip_address,
+                user_agent=user_agent,
+                expires_at=expires_at
+            )
+            
+            self.db.add(new_session)
+            access_token = tokens["access_token"]
+            refresh_token = tokens["refresh_token"]
+        
             self.db.commit()
             
             # Send welcome back email asynchronously

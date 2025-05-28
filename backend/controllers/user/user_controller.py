@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Request, status, Header
 from sqlalchemy.orm import Session
-from schemas.user import LoginRequest, RegisterRequest, ForgotPasswordRequest, ResetPasswordRequest, RefreshTokenRequest
+from schemas.user import LoginRequest, RegisterRequest, ForgotPasswordRequest, ResetPasswordRequest, RefreshTokenRequest, UserCreate, UserUpdate, UserResponse
 from core.database import get_db
 from models.user import User
 from passlib.context import CryptContext
@@ -25,7 +25,7 @@ class UserController(BaseController[User]):
         self.setup_routes()
 
     def setup_routes(self):
-        @self.router.get("/me")
+        @self.router.get("/me", response_model=UserResponse)
         async def get_current_user(
             authorization: Optional[str] = Header(None),
             db: Session = Depends(get_db)
@@ -42,6 +42,31 @@ class UserController(BaseController[User]):
             access_token = authorization.split(" ")[1]
             user_service = UserService(db)
             return user_service.get_current_user(access_token)
+
+        @self.router.put("/me", response_model=UserResponse)
+        async def update_user_profile(
+            update_data: UserUpdate,
+            authorization: Optional[str] = Header(None),
+            db: Session = Depends(get_db)
+        ):
+            """
+            Update current user's profile information.
+            """
+            if not authorization or not authorization.startswith("Bearer "):
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid authorization header"
+                )
+            
+            access_token = authorization.split(" ")[1]
+            user_service = UserService(db)
+            
+            # First get the current user to ensure authentication
+            current_user = user_service.get_current_user(access_token)
+            
+            # Then update the user's profile
+            updated_user = user_service.update_user_profile(current_user.id, update_data)
+            return updated_user
 
         @self.router.post("/login")
         async def login(

@@ -1,5 +1,6 @@
 from pydantic import BaseModel, EmailStr, Field, constr
 from typing import Optional
+from datetime import datetime
 
 class LoginRequest(BaseModel):
     email: EmailStr = Field(..., description="User's email address")
@@ -59,4 +60,51 @@ class RefreshTokenRequest(BaseModel):
             "example": {
                 "refresh_token": "refresh-token-123"
             }
-        } 
+        }
+
+class EmailVerificationRequest(BaseModel):
+    token: str = Field(..., description="Email verification token")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "token": "verification-token-123"
+            }
+        }
+
+class UserBase(BaseModel):
+    email: EmailStr
+    first_name: str
+    last_name: str
+
+class UserCreate(UserBase):
+    password: constr(min_length=8)
+
+class UserUpdate(BaseModel):
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    profile_picture: Optional[str] = None
+    phone_number: Optional[str] = None
+    address: Optional[str] = None
+
+class UserResponse(UserBase):
+    id: int
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+    profile_picture: Optional[str] = None
+    phone_number: Optional[str] = None
+    address: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+class Token(BaseModel):
+    access_token: str
+    refresh_token: str
+    token_type: str
+    expires_in: int
+
+class TokenData(BaseModel):
+    email: Optional[str] = None
+    user_id: Optional[int] = None 
