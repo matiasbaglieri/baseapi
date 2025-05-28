@@ -7,6 +7,7 @@
 ![MySQL](https://img.shields.io/badge/MySQL-8.0+-4479A1?style=for-the-badge&logo=mysql&logoColor=white)
 ![Redis](https://img.shields.io/badge/Redis-6.0+-DC382D?style=for-the-badge&logo=redis&logoColor=white)
 ![Celery](https://img.shields.io/badge/Celery-37814A?style=for-the-badge&logo=celery&logoColor=white)
+![Mailgun](https://img.shields.io/badge/Mailgun-FF0000?style=for-the-badge&logo=mailgun&logoColor=white)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=for-the-badge)](http://makeapullrequest.com)
@@ -29,6 +30,7 @@ BaseAPI is a modern, scalable backend framework built with FastAPI, designed for
 | 📦 **Architecture** | Modular, production-ready project structure |
 | 🔧 **Configuration** | Environment-based configuration for flexibility |
 | 📈 **Scalability** | Ready for Docker/Kubernetes environments |
+| 📧 **Email System** | Mailgun integration with development mode |
 
 </div>
 
@@ -44,6 +46,7 @@ baseapi/
 │   ├── core/                # Core functionality
 │   │   ├── celery_app.py    # Celery configuration
 │   │   ├── init_db.py       # Database initialization
+│   │   ├── mail.py         # Mailgun service
 │   │   └── utils.py         # Utility functions
 │   ├── models/              # SQLAlchemy models
 │   │   ├── user.py         # User model
@@ -118,7 +121,74 @@ CORS_HEADERS=["*"]
 # Celery Configuration
 CELERY_BROKER_URL=redis://localhost:6379/0
 CELERY_RESULT_BACKEND=redis://localhost:6379/0
+
+# Development Mode
+DEV_MODE=true  # Set to false in production
+
+# Mailgun Configuration (required in production)
+MAILGUN_API_KEY=your-api-key-here
+MAILGUN_DOMAIN=your-domain.com
+MAILGUN_FROM_EMAIL=noreply@your-domain.com
 ```
+
+## 📧 Email Configuration
+
+### Mailgun Setup
+
+BaseAPI uses Mailgun for sending emails. To set up Mailgun:
+
+1. **Create a Mailgun Account**
+   - Sign up at [Mailgun](https://www.mailgun.com/)
+   - Verify your domain or use the sandbox domain for testing
+
+2. **Get Your API Key**
+   - Go to Mailgun Dashboard → Settings → API Keys
+   - Copy your Private API Key
+
+3. **Configure Environment Variables**
+   ```env
+   MAILGUN_API_KEY=your-api-key-here
+   MAILGUN_DOMAIN=your-domain.com
+   MAILGUN_FROM_EMAIL=noreply@your-domain.com
+   ```
+
+4. **Development Mode**
+   - Set `DEV_MODE=true` in `.env` to log emails instead of sending them
+   - Useful for development and testing without Mailgun credentials
+
+### Available Email Templates
+
+The system includes several email templates:
+
+- Welcome Email
+- Email Verification
+- Password Reset
+- Custom Emails
+
+### Using Email Service
+
+```python
+from core.mail import mail_service
+
+# Send a simple email
+mail_service.send_email(
+    to_email="user@example.com",
+    subject="Hello",
+    body="Welcome to BaseAPI!"
+)
+
+# Send a welcome email (using Celery task)
+from tasks.email_tasks import send_welcome_email
+send_welcome_email.delay("user@example.com", "username")
+```
+
+### Email Features
+
+- 📨 Asynchronous email sending with Celery
+- 📝 HTML and plain text support
+- 🔄 Automatic retries for failed sends
+- 📊 Detailed logging in development mode
+- 🔒 Secure API key handling
 
 ## 🛠️ Usage
 
@@ -130,12 +200,36 @@ make start
 
 # Run database migrations
 make migrate
+```
 
-# Start Celery worker
-make celery
+### Makefile Commands
 
-# Start Celery beat
-make celery-beat
+The project includes several useful Makefile commands for development:
+
+```bash
+# Create virtual environment
+make venv
+
+# Install dependencies
+make install
+
+# Start the application
+make start
+# or
+make run
+
+# Database migrations
+make alembic              # Initialize Alembic
+make alembic-revision     # Create new migration
+make alembic-upgrade      # Apply migrations
+make alembic-downgrade    # Rollback last migration
+
+# Celery tasks
+make celery              # Start Celery worker
+make celery-beat         # Start Celery beat scheduler
+
+# Clean installation
+make clean-install       # Clean and reinstall dependencies
 ```
 
 ### API Documentation
@@ -170,6 +264,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 | ⚙️ Celery | Task Queue |
 | 🔄 Redis | Message Broker |
 | 🐬 MySQL | Database |
+| 📧 Mailgun | Email Service |
 
 </div>
 
