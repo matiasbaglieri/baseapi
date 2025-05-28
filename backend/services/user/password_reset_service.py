@@ -1,17 +1,14 @@
 from sqlalchemy.orm import Session
-from fastapi import HTTPException
+from fastapi import HTTPException, status
 from models.user import User
 from models.password_reset import PasswordReset
 from sqlalchemy import func, and_
 from datetime import datetime, timedelta
 import secrets
-from tasks.email_tasks import send_email
+from tasks.password_reset_tasks import send_password_reset_notification
 from core.config import settings
 from passlib.context import CryptContext
-import logging
-
-# Configure logging
-logger = logging.getLogger(__name__)
+from core.logger import logger
 
 # Password hashing context
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -61,61 +58,45 @@ class PasswordResetService:
             HTTPException: If user not found or other errors occur
         """
         try:
-            # Find user by email
             user = self.db.query(User).filter(User.email == email).first()
             if not user:
-                # Return success even if user not found to prevent email enumeration
-                return {
-                    "message": "If your email is registered, you will receive a password reset link.",
-                    "status": "success"
-                }
-            
-            # Create password reset token
-            token = secrets.token_urlsafe(32)
-            expires_at = datetime.utcnow() + timedelta(hours=24)  # 24 hour expiry
-            
-            # Create password reset record
-            password_reset = PasswordReset(
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="User not found"
+                )
+
+            # Invalidate any existing reset tokens
+            existing_tokens = self.db.query(PasswordReset).filter(
+                PasswordReset.user_id == user.id
+            ).all()
+            for token in existing_tokens:
+                token.is_used = True
+
+            # Create new reset token
+            reset_token = PasswordReset(
                 user_id=user.id,
-                token=token,
-                expires_at=expires_at,
-                is_valid=True
+                expires_at=datetime.utcnow() + timedelta(hours=24)
             )
-            
-            self.db.add(password_reset)
+            self.db.add(reset_token)
             self.db.commit()
-            
-            # Generate reset link
-            reset_link = f"{settings.FRONTEND_URL}/reset-password?token={token}"
-            logger.info(f"Generated password reset link for user {user.email}: {reset_link}")
-            
-            # Send password reset email
-            send_email.delay(
-                to_email=user.email,
-                subject="Password Reset Request",
-                body=f"""
-                Hello {user.first_name},
-                
-                You have requested to reset your password. Click the link below to reset your password:
-                {reset_link}
-                
-                This link will expire in 24 hours.
-                
-                If you did not request this password reset, please ignore this email.
-                
-                Best regards,
-                Your App Team
-                """
-            )
-            
+
+            # Send password reset email using the dedicated task
+            send_password_reset_notification.delay(user.id, reset_token.token)
+            logger.info(f"Password reset email sent to user: {user.email}")
+
             return {
-                "message": "If your email is registered, you will receive a password reset link.",
+                "message": "Password reset email sent",
                 "status": "success"
             }
-            
+
+        except HTTPException:
+            raise
         except Exception as e:
-            self.db.rollback()
-            raise HTTPException(status_code=400, detail=str(e))
+            logger.error(f"Error creating password reset: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="An error occurred while processing your request"
+            )
 
     def verify_reset_token(self, token: str) -> User:
         """
@@ -166,37 +147,39 @@ class PasswordResetService:
             HTTPException: If token is invalid or other errors occur
         """
         try:
-            # Verify token and get user
-            user = self.verify_reset_token(token)
-            
-            # Update password
-            user.password = pwd_context.hash(new_password)
-            
-            # Mark reset token as used
-            reset_record = self.db.query(PasswordReset).filter(
+            # Find valid reset token
+            reset_token = self.db.query(PasswordReset).filter(
                 and_(
                     PasswordReset.token == token,
                     PasswordReset.expires_at > datetime.utcnow(),
-                    PasswordReset.is_valid == True
+                    PasswordReset.is_used == False
                 )
             ).first()
-            
-            if not reset_record:
+
+            if not reset_token:
                 raise HTTPException(
-                    status_code=400,
-                    detail="Invalid or expired password reset token"
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid or expired token"
                 )
-            
-            reset_record.is_valid = False
-            reset_record.used_at = datetime.utcnow()
-            
+
+            # Get user and update password
+            user = self.db.query(User).filter(User.id == reset_token.user_id).first()
+            if not user:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="User not found"
+                )
+
+            # Update password
+            user.set_password(new_password)
+            reset_token.is_used = True
             self.db.commit()
-            
-            # Send confirmation email
-            send_email.delay(
-                to_email=user.email,
-                subject="Password Reset Successful",
-                body=f"""
+
+            # Send confirmation email using the dedicated task
+            send_password_reset_notification.delay(
+                user.id,
+                "Password Reset Successful",
+                f"""
                 Hello {user.first_name},
                 
                 Your password has been successfully reset.
@@ -207,14 +190,18 @@ class PasswordResetService:
                 Your App Team
                 """
             )
-            
+            logger.info(f"Password reset successful for user: {user.email}")
+
             return {
-                "message": "Password has been reset successfully",
+                "message": "Password reset successful",
                 "status": "success"
             }
-            
+
         except HTTPException:
             raise
         except Exception as e:
-            self.db.rollback()
-            raise HTTPException(status_code=400, detail=str(e)) 
+            logger.error(f"Error resetting password: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="An error occurred while processing your request"
+            ) 

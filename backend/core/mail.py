@@ -14,15 +14,14 @@ class MailService:
         self.from_email = settings.MAILGUN_FROM_EMAIL
         self.api_url = f"https://api.mailgun.net/v3/{self.domain}/messages"
 
-    def send_email(self, to_email: str, subject: str, body: str, html_body: str = None) -> dict:
+    def send_email(self, to_email: str, subject: str, body: str) -> dict:
         """
         Send an email using Mailgun API.
         
         Args:
             to_email (str): Recipient email address
             subject (str): Email subject
-            body (str): Plain text email body
-            html_body (str, optional): HTML email body
+            body (str): Email body
             
         Returns:
             dict: Response from Mailgun API
@@ -37,9 +36,6 @@ class MailService:
                 "subject": subject,
                 "text": body
             }
-            
-            if html_body:
-                data["html"] = html_body
 
             response = requests.post(
                 self.api_url,
