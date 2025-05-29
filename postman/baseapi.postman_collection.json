@@ -212,6 +212,39 @@
 						}
 					},
 					"response": []
+				},
+				{
+					"name": "change-password",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{hands_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"current_password\": \"stringasdasd\",\n    \"new_password\": \"stringasdasd\",\n    \"confirm_password\": \"stringasdasd\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{host}}/users/change-password",
+							"host": [
+								"{{host}}"
+							],
+							"path": [
+								"users",
+								"change-password"
+							]
+						}
+					},
+					"response": []
 				}
 			]
 		},
