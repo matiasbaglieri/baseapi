@@ -19,6 +19,12 @@ class Settings(BaseSettings):
         description="Server port"
     )
 
+    # Development settings
+    DEV_MODE: bool = Field(
+        default=False,
+        description="Development mode flag"
+    )
+
     # Database settings
     MYSQL_USER: str = Field(
         default="root",
@@ -189,6 +195,12 @@ class Settings(BaseSettings):
         if isinstance(v, str):
             return [i.strip() for i in v.strip("[]").split(",")]
         return v
+
+    @validator("DEV_MODE", pre=True)
+    def parse_bool(cls, v):
+        if isinstance(v, str):
+            return v.lower() in ("true", "1", "yes")
+        return bool(v)
 
     class Config:
         env_file = ".env"

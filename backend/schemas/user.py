@@ -107,4 +107,18 @@ class Token(BaseModel):
 
 class TokenData(BaseModel):
     email: Optional[str] = None
-    user_id: Optional[int] = None 
+    user_id: Optional[int] = None
+
+class PasswordChange(BaseModel):
+    current_password: str
+    new_password: constr(min_length=8)
+    confirm_password: str
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "current_password": "your_current_password",
+                "new_password": "your_new_password",
+                "confirm_password": "your_new_password"
+            }
+        } 

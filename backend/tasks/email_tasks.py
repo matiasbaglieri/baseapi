@@ -85,4 +85,56 @@ def send_password_reset_email(to_email: str, reset_token: str) -> dict:
     Best regards,
     The BaseAPI Team
     """
+    return mail_service.send_email(to_email, subject, body)
+
+@shared_task
+def send_password_change_notification(to_email: str, username: str, ip_address: str = None, user_agent: str = None) -> dict:
+    """
+    Send a notification email when a user changes their password.
+    
+    Args:
+        to_email (str): Recipient email address
+        username (str): Username of the user
+        ip_address (str, optional): IP address of the request
+        user_agent (str, optional): User agent of the request
+        
+    Returns:
+        dict: Response from Mailgun API
+    """
+    if not mail_service:
+        logger.error("Mail service is not properly configured. Please check your .env-local file.")
+        raise ValueError("Mail service is not properly configured")
+        
+    subject = "Password Changed - Security Alert"
+    
+    # Format the time
+    current_time = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+    
+    # Create device info string
+    device_info = []
+    if ip_address:
+        device_info.append(f"IP Address: {ip_address}")
+    if user_agent:
+        device_info.append(f"Browser/Device: {user_agent}")
+    device_info_str = "\n".join(device_info) if device_info else "Device information not available"
+    
+    body = f"""
+    Hello {username},
+    
+    Your password was recently changed at {current_time}.
+    
+    If you made this change, you can safely ignore this email.
+    
+    If you did not make this change, please contact support immediately.
+    
+    Change Details:
+    {device_info_str}
+    
+    For security reasons, all your active sessions have been invalidated.
+    You will need to log in again with your new password.
+    
+    Best regards,
+    The BaseAPI Team
+    """
+    
     return mail_service.send_email(to_email, subject, body) 

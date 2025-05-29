@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Request, status, Header
 from sqlalchemy.orm import Session
-from schemas.user import LoginRequest, RegisterRequest, ForgotPasswordRequest, ResetPasswordRequest, RefreshTokenRequest, UserCreate, UserUpdate, UserResponse
+from schemas.user import LoginRequest, RegisterRequest, ForgotPasswordRequest, ResetPasswordRequest, RefreshTokenRequest, UserCreate, UserUpdate, UserResponse, PasswordChange
 from core.database import get_db
 from models.user import User
 from passlib.context import CryptContext
@@ -128,6 +128,59 @@ class UserController(BaseController[User]):
             """
             password_reset_service = PasswordResetService(db)
             return password_reset_service.reset_password(data.token, data.new_password)
+
+        @self.router.put("/change-password", response_model=dict)
+        async def change_password(
+            request: Request,
+            password_data: PasswordChange,
+            authorization: Optional[str] = Header(None),
+            db: Session = Depends(get_db)
+        ):
+            """
+            Change user's password, invalidate all sessions, and create new tokens.
+            """
+            try:
+                if not authorization or not authorization.startswith("Bearer "):
+                    raise HTTPException(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        detail="Invalid authorization header"
+                    )
+                
+                # Verify passwords match
+                if password_data.new_password != password_data.confirm_password:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="New password and confirmation do not match"
+                    )
+                
+                access_token = authorization.split(" ")[1]
+                user_service = UserService(db)
+                
+                # Get current user
+                current_user = user_service.get_current_user(access_token)
+                
+                # Change password and get new tokens
+                tokens = user_service.change_password(
+                    current_user.id,
+                    password_data.current_password,
+                    password_data.new_password,
+                    ip_address=request.client.host,
+                    user_agent=request.headers.get("user-agent")
+                )
+                
+                return {
+                    "message": "Password changed successfully",
+                    "tokens": tokens
+                }
+                
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.error(f"Error in change_password: {str(e)}")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="An error occurred while changing password"
+                )
 
 # Create router instance
 user_controller = UserController()

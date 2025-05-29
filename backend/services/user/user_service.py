@@ -10,6 +10,9 @@ from schemas.user import UserUpdate
 import jwt
 from core import settings
 import secrets
+from core.security import get_password_hash, verify_password
+from typing import Optional
+from tasks.email_tasks import send_password_change_notification
 
 class UserService:
     def __init__(self, db: Session):
@@ -209,4 +212,96 @@ class UserService:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="An error occurred while verifying email"
+            )
+
+    def change_password(self, user_id: int, current_password: str, new_password: str, ip_address: str = None, user_agent: str = None) -> dict:
+        """
+        Change user's password, invalidate all sessions, and create new tokens.
+        
+        Args:
+            user_id (int): ID of the user
+            current_password (str): Current password for verification
+            new_password (str): New password to set
+            ip_address (str, optional): IP address of the request
+            user_agent (str, optional): User agent of the request
+            
+        Returns:
+            dict: New access and refresh tokens
+            
+        Raises:
+            HTTPException: If user not found or current password is incorrect
+        """
+        try:
+            # Get user and verify current password
+            user = self.db.query(User).filter(User.id == user_id).first()
+            if not user:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="User not found"
+                )
+            
+            if not user.verify_password(current_password):
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Current password is incorrect"
+                )
+            
+            # Update password
+            user.set_password(new_password)
+            user.updated_at = datetime.utcnow()
+            
+            # Delete all existing sessions
+            self.db.query(SessionModel).filter(SessionModel.user_id == user_id).delete()
+            
+            # Create new tokens
+            tokens = JWTManager.create_tokens_response(
+                user_id=user.id,
+                email=user.email,
+                role=user.role
+            )
+            
+            # Calculate session expiration time
+            expires_at = datetime.utcnow() + timedelta(days=settings.SESSION_EXPIRY_DAYS)
+            
+            # Create new session
+            new_session = SessionModel(
+                user_id=user.id,
+                access_token=tokens["access_token"],
+                refresh_token=tokens["refresh_token"],
+                token_type="bearer",
+                ip_address=ip_address,
+                user_agent=user_agent,
+                created_at=datetime.utcnow(),
+                expires_at=expires_at,
+                last_activity=datetime.utcnow(),
+                is_active=True
+            )
+            self.db.add(new_session)
+            
+            # Commit all changes
+            self.db.commit()
+            
+            # Send password change notification email
+            try:
+                send_password_change_notification.delay(
+                    to_email=user.email,
+                    username=f"{user.first_name} {user.last_name}",
+                    ip_address=ip_address,
+                    user_agent=user_agent
+                )
+            except Exception as e:
+                logger.error(f"Failed to send password change notification email: {str(e)}")
+                # Don't raise the exception as the password change was successful
+            
+            logger.info(f"Password changed successfully for user {user.email}")
+            return tokens
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            self.db.rollback()
+            logger.error(f"Error changing password: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="An error occurred while changing password"
             ) 
