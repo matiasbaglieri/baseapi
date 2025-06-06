@@ -20,14 +20,16 @@ class Country(Base):
     currency_symbol = Column(String(10), nullable=True)
     tld = Column(String(10), nullable=True)
     native = Column(String(100), nullable=True)
-    region_id = Column(Integer, ForeignKey('regions.id'), nullable=True)
-    subregion_id = Column(Integer, ForeignKey('subregions.id'), nullable=True)
     nationality = Column(String(100), nullable=True)
     timezones = Column(JSON, nullable=True)  # Store as JSON array
     latitude = Column(Float, nullable=True)
     longitude = Column(Float, nullable=True)
     emoji = Column(String(10), nullable=True)
     emojiU = Column(String(20), nullable=True)
+
+
+    # Relationship with Users
+    users = relationship("User", back_populates="country")
 
     # Add constraints for coordinates
     __table_args__ = (

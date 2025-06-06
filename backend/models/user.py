@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, Text, Enum
+from sqlalchemy import Column, Integer, String, DateTime, Boolean, Text, Enum, ForeignKey
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from core.init_db import Base
@@ -19,18 +19,25 @@ class User(Base):
     last_name = Column(String(100), nullable=False)
     role = Column(Enum(UserRole), default=UserRole.USER, nullable=False)
     is_active = Column(Boolean, default=True)
+    is_blocked = Column(Boolean, default=False)
     is_verified = Column(Boolean, default=False)
+    retry_count = Column(Integer, default=0)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     last_login = Column(DateTime(timezone=True), nullable=True)
     profile_picture = Column(String(255), nullable=True)
     phone_number = Column(String(20), nullable=True)
+    language = Column(String(3), nullable=False, default='en')
     address = Column(Text, nullable=True)
+    country_id = Column(Integer, ForeignKey('countries.id'), nullable=True)
+    city_id = Column(Integer, ForeignKey('cities.id'), nullable=True)
 
     # Relationships
     sessions = relationship("Session", back_populates="user", cascade="all, delete-orphan")
     password_resets = relationship("PasswordReset", back_populates="user", cascade="all, delete-orphan")
     email_verifications = relationship("EmailVerification", back_populates="user", cascade="all, delete-orphan")
+    country = relationship("Country", back_populates="users")
+    city = relationship("City", back_populates="users")
 
     def set_password(self, password: str) -> None:
         """

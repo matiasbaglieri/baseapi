@@ -11,6 +11,10 @@ from core.roles import UserRole
 from datetime import datetime, timedelta
 import os
 from dotenv import load_dotenv
+from core.logger import logger
+from services.country.country_service import CountryService
+from core.config import settings
+from services.city.city_service import CityService
 
 # Load environment variables
 load_dotenv()
@@ -24,6 +28,8 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 class RegisterService:
     def __init__(self, db: Session):
         self.db = db
+        self.country_service = CountryService(db)
+        self.city_service = CityService(db)
 
     def register_user(self, data: RegisterRequest, ip_address: str = None, user_agent: str = None) -> dict:
         """
@@ -49,13 +55,36 @@ class RegisterService:
                     detail="Email already registered"
                 )
             
+            # Validate country if provided
+            country = None
+            if data.country or data.country_code:
+                country = self.country_service.validate_country(
+                    country_name=data.country,
+                    country_code=data.country_code
+                )
+            if not country:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid country"
+                )
+
+            # Validate city if provided
+            city = None
+            if data.city and country:
+                city = self.city_service.validate_city(
+                    city_name=data.city,
+                    country_id=country.country_id
+                )
+            
             # Create new user
             new_user = User(
                 email=data.email,
                 first_name=data.first_name,
                 last_name=data.last_name,
-                
-                role=UserRole.USER.value  # Default role
+                role=UserRole.USER.value,  # Default role
+                country_id=country.id if country else None,
+                city_id=city.id if city else None,
+                language=data.language or 'en'  # Use provided language or default to 'en'
             )
             new_user.set_password(data.password)
             
@@ -70,7 +99,7 @@ class RegisterService:
             )
             
             # Calculate expiration time
-            expires_at = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+            expires_at = datetime.utcnow() + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
             
             # Create new session
             new_session = SessionModel(
@@ -102,7 +131,11 @@ class RegisterService:
                     "first_name": new_user.first_name,
                     "last_name": new_user.last_name,
                     "is_verified": new_user.is_verified,
-                    "role": new_user.role
+                    "role": new_user.role,
+                    "country": country.name if country else None,
+                    "country_code": country.iso2 if country else None,
+                    "city": city.name if city else None,
+                    "language": new_user.language
                 },
                 "tokens": {
                     "access_token": tokens["access_token"],
@@ -114,4 +147,9 @@ class RegisterService:
         except HTTPException:
             raise
         except Exception as e:
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)) 
+            self.db.rollback()
+            logger.error(f"Error registering user: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="An error occurred while registering user"
+            ) 

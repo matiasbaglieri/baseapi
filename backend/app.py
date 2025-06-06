@@ -1,9 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from controllers.base import router as base_router
+from controllers.base_controller import router as base_router
 from controllers.user import router as user_router
 from controllers.user.email_validator_controller import router as email_validator_router
-from core.init_db import init_db, get_db,drop_db
+from controllers.country_controller import router as country_router
+from controllers.city_controller import router as city_router
+from core.init_db import init_db, get_db, drop_db
 from core.utils import parse_json_env_var
 from core.celery_app import celery_app, init_celery, shutdown_celery
 from core.logger import logger
@@ -40,7 +42,7 @@ async def lifespan(app: FastAPI):
     logger.info("Starting up FastAPI application...")
     init_celery()
     # drop_db()
-    # init_db()  # Initialize database tables
+    init_db()  # Initialize database tables
     
     yield
     
@@ -49,7 +51,12 @@ async def lifespan(app: FastAPI):
     shutdown_celery()
     logger.info("Shutdown complete")
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(
+    title="Base API",
+    description="Base API with user management and location services",
+    version="1.0.0",
+    lifespan=lifespan
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -61,8 +68,10 @@ app.add_middleware(
 
 # Include routers
 app.include_router(base_router)
-app.include_router(user_router)
-app.include_router(email_validator_router)
+app.include_router(user_router, prefix="/users", tags=["users"])
+app.include_router(email_validator_router, prefix="/email", tags=["email"])
+app.include_router(country_router, prefix="/countries", tags=["countries"])
+app.include_router(city_router, prefix="/cities", tags=["cities"])
 
 if __name__ == "__main__":
     # Server Configuration

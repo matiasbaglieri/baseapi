@@ -1,6 +1,7 @@
 from pydantic import BaseModel, EmailStr, Field, constr
 from typing import Optional
 from datetime import datetime
+from core.roles import UserRole
 
 class LoginRequest(BaseModel):
     email: EmailStr = Field(..., description="User's email address")
@@ -17,8 +18,12 @@ class LoginRequest(BaseModel):
 class RegisterRequest(BaseModel):
     email: EmailStr = Field(..., description="User's email address")
     password: constr(min_length=8) = Field(..., description="User's password")
-    first_name: str = Field(..., min_length=2, description="User's first name")
-    last_name: str = Field(..., min_length=2, description="User's last name")
+    first_name: constr(min_length=2, max_length=100) = Field(..., description="User's first name")
+    last_name: constr(min_length=2, max_length=100) = Field(..., description="User's last name")
+    country: Optional[str] = Field(None, description="Country name")
+    country_code: Optional[str] = Field(None, description="ISO2 or ISO3 country code")
+    city: Optional[str] = Field(None, description="City name")
+    language: Optional[str] = Field('en', description="User's preferred language (ISO 639-2 code)")
 
     class Config:
         json_schema_extra = {
@@ -26,7 +31,11 @@ class RegisterRequest(BaseModel):
                 "email": "user@example.com",
                 "password": "password123",
                 "first_name": "John",
-                "last_name": "Doe"
+                "last_name": "Doe",
+                "country": "United States",
+                "country_code": "US",
+                "city": "New York",
+                "language": "en"
             }
         }
 
@@ -95,6 +104,12 @@ class UserResponse(UserBase):
     profile_picture: Optional[str] = None
     phone_number: Optional[str] = None
     address: Optional[str] = None
+    is_verified: bool
+    role: UserRole
+    country: Optional[str] = None
+    country_code: Optional[str] = None
+    city: Optional[str] = None
+    language: str = 'en'
 
     class Config:
         from_attributes = True
@@ -121,4 +136,16 @@ class PasswordChange(BaseModel):
                 "new_password": "your_new_password",
                 "confirm_password": "your_new_password"
             }
-        } 
+        }
+
+class TokenResponse(BaseModel):
+    access_token: str
+    refresh_token: str
+    token_type: str
+    expires_in: int
+
+class RegisterResponse(BaseModel):
+    message: str
+    status: str
+    user: UserResponse
+    tokens: TokenResponse 
