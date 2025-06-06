@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, DateTime, JSON, ForeignKey
 from sqlalchemy.orm import relationship
-from database import Base
+from core.init_db  import Base
 from datetime import datetime
 
 class SubscriptionUser(Base):
@@ -13,7 +13,9 @@ class SubscriptionUser(Base):
     data_json = Column(JSON, nullable=True)  # Additional subscription data
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
+    start_date = Column(DateTime, nullable=True) 
+    end_date = Column(DateTime, nullable=True)  
+    
     # Relationships
     user = relationship("User", back_populates="subscriptions")
     subscription = relationship("Subscription", back_populates="subscription_users")

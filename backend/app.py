@@ -5,6 +5,8 @@ from controllers.user import router as user_router
 from controllers.user.email_validator_controller import router as email_validator_router
 from controllers.country_controller import router as country_router
 from controllers.city_controller import router as city_router
+from controllers.payment import router as payment_router
+from controllers.stripe import subscription_router, subscription_user_router
 from core.init_db import init_db, get_db, drop_db
 from core.utils import parse_json_env_var
 from core.celery_app import celery_app, init_celery, shutdown_celery
@@ -72,10 +74,13 @@ app.include_router(user_router, prefix="/users", tags=["users"])
 app.include_router(email_validator_router, prefix="/email", tags=["email"])
 app.include_router(country_router, prefix="/countries", tags=["countries"])
 app.include_router(city_router, prefix="/cities", tags=["cities"])
+app.include_router(payment_router, prefix="/payments", tags=["payments"])
+app.include_router(subscription_router, prefix="/subscriptions", tags=["subscriptions"])
+app.include_router(subscription_user_router, prefix="/subscription-users", tags=["subscription-users"])
 
 if __name__ == "__main__":
     # Server Configuration
     HOST = os.getenv("HOST", "0.0.0.0")
     PORT = int(os.getenv("PORT", "8000"))
     
-    uvicorn.run("app:app", host=HOST, port=PORT, reload=True) 
+    uvicorn.run("app:app", host=HOST, port=PORT, reload=True)

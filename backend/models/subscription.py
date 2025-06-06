@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, Float, DateTime, JSON
 from sqlalchemy.orm import relationship
-from database import Base
+from core.init_db  import Base
 from datetime import datetime
 
 class Subscription(Base):
@@ -11,6 +11,8 @@ class Subscription(Base):
     subscription_type = Column(String(50), nullable=False)  # e.g., 'monthly', 'yearly', 'lifetime'
     currency = Column(String(3), nullable=False)  # e.g., 'USD', 'EUR'
     amount = Column(Float, nullable=False)
+    stripe_product_id = Column(String(100), nullable=True)
+    stripe_price_id = Column(String(100), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

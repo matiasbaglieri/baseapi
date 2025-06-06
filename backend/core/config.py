@@ -18,7 +18,10 @@ class Settings(BaseSettings):
         default=8000,
         description="Server port"
     )
-
+    STRIPE_API_KEY: str = Field(
+        default="your_stripe_secret_key",
+        description="Stripe api key"
+    )
     # Development settings
     DEV_MODE: bool = Field(
         default=False,
