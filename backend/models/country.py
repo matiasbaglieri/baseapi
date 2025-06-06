@@ -26,7 +26,8 @@ class Country(Base):
     longitude = Column(Float, nullable=True)
     emoji = Column(String(10), nullable=True)
     emojiU = Column(String(20), nullable=True)
-
+    region = Column(String(50), nullable=True, index=True)
+    subregion = Column(String(50), nullable=True, index=True)
 
     # Relationship with Users
     users = relationship("User", back_populates="country")

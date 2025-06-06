@@ -32,12 +32,15 @@ class User(Base):
     country_id = Column(Integer, ForeignKey('countries.id'), nullable=True)
     city_id = Column(Integer, ForeignKey('cities.id'), nullable=True)
 
+    subscription = Column(String(20), nullable=False)
     # Relationships
     sessions = relationship("Session", back_populates="user", cascade="all, delete-orphan")
     password_resets = relationship("PasswordReset", back_populates="user", cascade="all, delete-orphan")
     email_verifications = relationship("EmailVerification", back_populates="user", cascade="all, delete-orphan")
     country = relationship("Country", back_populates="users")
     city = relationship("City", back_populates="users")
+    subscriptions = relationship("SubscriptionUser", back_populates="user")
+    payments = relationship("Payment", back_populates="user")
 
     def set_password(self, password: str) -> None:
         """

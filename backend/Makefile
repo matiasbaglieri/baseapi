@@ -1,14 +1,14 @@
 .PHONY: venv install start run alembic alembic-revision alembic-upgrade alembic-downgrade celery celery-beat clean-install
 
 venv:
-	python3 -m venv env
+	python3.11 -m venv env
 
 clean-install: venv
 	. env/bin/activate && \
-	python3 -m pip install --upgrade pip && \
-	pip3 install setuptools wheel && \
-	pip3 uninstall -y bcrypt passlib && \
-	pip3 install -r requirements.txt
+	python3.11 -m pip install --upgrade pip && \
+	pip install setuptools wheel && \
+	pip uninstall -y bcrypt passlib && \
+	pip install -r requirements.txt
 
 install: clean-install
 
@@ -17,7 +17,7 @@ start run:
 		echo "Error: .env file not found. Please create .env file first."; \
 		exit 1; \
 	fi
-	. env/bin/activate && python3 app.py
+	. env/bin/activate && python3.11 app.py
 
 alembic:
 	. env/bin/activate && alembic init alembic
