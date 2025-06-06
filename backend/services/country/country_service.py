@@ -6,6 +6,8 @@ from typing import List, Optional
 import json
 import os
 from pathlib import Path
+import pandas as pd
+import ast
 
 class CountryService:
     def __init__(self, db: Session):
@@ -120,16 +122,37 @@ class CountryService:
         
         return query.all()
 
+    def _parse_timezones(self, timezones_str: str) -> Optional[List[dict]]:
+        """Parse timezones string to JSON list."""
+        if not timezones_str or timezones_str == '[]':
+            return None
+        try:
+            # Convert string representation of list to actual list
+            timezones_list = ast.literal_eval(timezones_str)
+            return timezones_list
+        except (ValueError, SyntaxError):
+            return None
+
+    def _parse_coordinates(self, value: str) -> Optional[float]:
+        """Parse coordinate string to float."""
+        if not value or value == '':
+            return None
+        try:
+            return float(value)
+        except (ValueError, TypeError):
+            return None
+
     async def initialize_countries(self) -> dict:
         """
-        Initialize countries in the database from a JSON file.
+        Initialize countries in the database from a CSV file using pandas.
+        id,name,iso3,iso2,numeric_code,phonecode,capital,currency,currency_name,currency_symbol,tld,native,region,region_id,subregion,subregion_id,nationality,timezones,latitude,longitude,emoji,emojiU
         
         Returns:
             dict: Statistics about the initialization process
         """
-        # Get the path to the countries.json file
+        # Get the path to the countries.csv file
         base_path = Path(__file__).parent.parent.parent
-        countries_file = base_path / "data" / "countries.json"
+        countries_file = base_path / "dump" / "countries.csv"
         
         if not countries_file.exists():
             raise HTTPException(
@@ -137,55 +160,88 @@ class CountryService:
                 detail="Countries data file not found"
             )
         
-        # Read and parse the JSON file
-        with open(countries_file, 'r', encoding='utf-8') as f:
-            countries_data = json.load(f)
+        # Read CSV file using pandas
+        try:
+            df = pd.read_csv(countries_file)
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error reading countries file: {str(e)}"
+            )
         
-        total_countries = len(countries_data)
+        total_countries = len(df)
         added_countries = 0
         updated_countries = 0
+        error_countries = 0
         
         # Process each country
-        for country_data in countries_data:
-            # Check if country already exists
-            existing_country = self.db.query(Country).filter(
-                or_(
-                    Country.iso2 == country_data['iso2'],
-                    Country.iso3 == country_data['iso3']
-                )
-            ).first()
-            
-            if existing_country:
-                # Update existing country
-                existing_country.name = country_data['name']
-                existing_country.iso2 = country_data['iso2']
-                existing_country.iso3 = country_data['iso3']
-                existing_country.phone_code = country_data.get('phone_code')
-                existing_country.currency = country_data.get('currency')
-                existing_country.currency_symbol = country_data.get('currency_symbol')
-                existing_country.region = country_data.get('region')
-                existing_country.subregion = country_data.get('subregion')
-                existing_country.latitude = country_data.get('latitude')
-                existing_country.longitude = country_data.get('longitude')
-                existing_country.emoji = country_data.get('emoji')
-                updated_countries += 1
-            else:
-                # Create new country
-                new_country = Country(
-                    name=country_data['name'],
-                    iso2=country_data['iso2'],
-                    iso3=country_data['iso3'],
-                    phone_code=country_data.get('phone_code'),
-                    currency=country_data.get('currency'),
-                    currency_symbol=country_data.get('currency_symbol'),
-                    region=country_data.get('region'),
-                    subregion=country_data.get('subregion'),
-                    latitude=country_data.get('latitude'),
-                    longitude=country_data.get('longitude'),
-                    emoji=country_data.get('emoji')
-                )
-                self.db.add(new_country)
-                added_countries += 1
+        for _, row in df.iterrows():
+            try:
+                # Check if country already exists
+                existing_country = self.db.query(Country).filter(
+                    Country.country_id == int(row[0])
+                ).first()
+                
+                # Parse timezones
+                timezones = self._parse_timezones(row[17])
+                
+                # Parse coordinates
+                latitude = self._parse_coordinates(row[18])
+                longitude = self._parse_coordinates(row[19])
+                
+                if existing_country:
+                    # Update existing country with type validation
+                    existing_country.country_id = int(row[0])
+                    existing_country.name = str(row[1])
+                    existing_country.iso3 = str(row[2])
+                    existing_country.iso2 = str(row[3])
+                    existing_country.numeric_code = str(row[4]) if pd.notna(row[4]) else None
+                    existing_country.phonecode = str(row[5]) if pd.notna(row[5]) else None
+                    existing_country.capital = str(row[6]) if pd.notna(row[6]) else None
+                    existing_country.currency = str(row[7]) if pd.notna(row[7]) else None
+                    existing_country.currency_name = str(row[8]) if pd.notna(row[8]) else None
+                    existing_country.currency_symbol = str(row[9]) if pd.notna(row[9]) else None
+                    existing_country.tld = str(row[10]) if pd.notna(row[10]) else None
+                    existing_country.native = str(row[11]) if pd.notna(row[11]) else None
+                    existing_country.region = str(row[12]) if pd.notna(row[12]) else None
+                    existing_country.subregion = str(row[14]) if pd.notna(row[14]) else None
+                    existing_country.nationality = str(row[16]) if pd.notna(row[16]) else None
+                    existing_country.timezones = timezones
+                    existing_country.latitude = latitude
+                    existing_country.longitude = longitude
+                    existing_country.emoji = str(row[20]) if pd.notna(row[20]) else None
+                    existing_country.emojiU = str(row[21]) if pd.notna(row[21]) else None
+                    updated_countries += 1
+                else:
+                    # Create new country with type validation
+                    new_country = Country(
+                        country_id=int(row[0]),
+                        name=str(row[1]),
+                        iso3=str(row[2]),
+                        iso2=str(row[3]),
+                        numeric_code=str(row[4]) if pd.notna(row[4]) else None,
+                        phonecode=str(row[5]) if pd.notna(row[5]) else None,
+                        capital=str(row[6]) if pd.notna(row[6]) else None,
+                        currency=str(row[7]) if pd.notna(row[7]) else None,
+                        currency_name=str(row[8]) if pd.notna(row[8]) else None,
+                        currency_symbol=str(row[9]) if pd.notna(row[9]) else None,
+                        tld=str(row[10]) if pd.notna(row[10]) else None,
+                        native=str(row[11]) if pd.notna(row[11]) else None,
+                        region=str(row[12]) if pd.notna(row[12]) else None,
+                        subregion=str(row[14]) if pd.notna(row[14]) else None,
+                        nationality=str(row[16]) if pd.notna(row[16]) else None,
+                        timezones=timezones,
+                        latitude=latitude,
+                        longitude=longitude,
+                        emoji=str(row[20]) if pd.notna(row[20]) else None,
+                        emojiU=str(row[21]) if pd.notna(row[21]) else None
+                    )
+                    self.db.add(new_country)
+                    added_countries += 1
+            except Exception as e:
+                error_countries += 1
+                print(f"Error processing country {row[1]}: {str(e)}")
+                continue
         
         # Commit changes
         self.db.commit()
@@ -193,5 +249,6 @@ class CountryService:
         return {
             "total_countries": total_countries,
             "added_countries": added_countries,
-            "updated_countries": updated_countries
+            "updated_countries": updated_countries,
+            "error_countries": error_countries
         } 
