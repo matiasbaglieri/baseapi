@@ -4,7 +4,7 @@ from models.user import User
 from models.session import Session as SessionModel
 from passlib.context import CryptContext
 from sqlalchemy import func, and_
-from tasks.email_tasks import send_email
+from tasks.email import send_email
 from schemas.user import LoginRequest
 from .session_service import SessionService
 from core.jwt import JWTManager
@@ -12,6 +12,7 @@ from core.roles import UserRole
 from datetime import datetime, timedelta
 import os
 from dotenv import load_dotenv
+from core.config import settings
 
 # Load environment variables
 load_dotenv()
@@ -51,20 +52,57 @@ class LoginService:
                     detail="Invalid email or password"
                 )
             
+            # Check if user is blocked and handle blocking period
+            if user.is_blocked:
+                if user.last_login:
+                    time_since_block = datetime.utcnow() - user.last_login
+                    if time_since_block < timedelta(minutes=3):
+                        remaining_time = timedelta(minutes=3) - time_since_block
+                        minutes = int(remaining_time.total_seconds() // 60)
+                        seconds = int(remaining_time.total_seconds() % 60)
+                        raise HTTPException(
+                            status_code=status.HTTP_403_FORBIDDEN,
+                            detail=f"Account is blocked. Please try again in {minutes} minutes and {seconds} seconds."
+                        )
+                    else:
+                        # Auto-unblock after 3 minutes
+                        user.is_blocked = False
+                        user.retry_count = 0
+                        self.db.commit()
+                else:
+                    # If last_login is None, unblock the user
+                    user.is_blocked = False
+                    user.retry_count = 0
+                    self.db.commit()
+            
             # Verify password using User model's method
             if not user.verify_password(data.password):
+                # Update retry count and last login
+                user.retry_count += 1
+                user.last_login = func.now()
+                
+                # Check if user should be blocked
+                if user.retry_count >= 5:
+                    user.is_blocked = True
+                    self.db.commit()
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Account has been blocked for 3 minutes due to too many failed attempts."
+                    )
+                
+                self.db.commit()
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Invalid email or password"
                 )
             
-            # Update last login
+            # Reset retry count on successful login
+            user.retry_count = 0
             user.last_login = func.now()
             
             # Clean up expired sessions for this user
             self.session_service.cleanup_expired_sessions(user.id)
             
-        
             # Create new JWT tokens
             tokens = JWTManager.create_tokens_response(
                 user_id=user.id,
@@ -73,7 +111,7 @@ class LoginService:
             )
             
             # Calculate expiration time
-            expires_at = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+            expires_at = datetime.utcnow() + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
             
             # Create new session
             new_session = SessionModel(
@@ -108,7 +146,9 @@ class LoginService:
                     "first_name": user.first_name,
                     "last_name": user.last_name,
                     "is_verified": user.is_verified,
-                    "role": user.role
+                    "role": user.role,
+                    "is_blocked": user.is_blocked,
+                    "retry_count": user.retry_count
                 },
                 "tokens": {
                     "access_token": access_token,
