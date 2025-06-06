@@ -84,7 +84,8 @@ class RegisterService:
                 role=UserRole.USER.value,  # Default role
                 country_id=country.id if country else None,
                 city_id=city.id if city else None,
-                language=data.language or 'en'  # Use provided language or default to 'en'
+                language=data.language or 'en',  # Use provided language or default to 'en'
+                subscription='FREE'
             )
             new_user.set_password(data.password)
             
