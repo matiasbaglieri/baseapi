@@ -6,11 +6,13 @@ from sqlalchemy.orm import joinedload
 import stripe
 from datetime import datetime
 from core.config import settings
+from services.notification.notification_service import NotificationService
 
 class PaymentService:
     def __init__(self, db: Session):
         self.db = db
         stripe.api_key = settings.STRIPE_API_KEY
+        self.notification_service = NotificationService(db)
 
     def get_user_payments(self, user_id: int, skip: int = 0, limit: int = 10) -> Dict[str, Any]:
         """
@@ -86,6 +88,20 @@ class PaymentService:
             self.db.add(payment)
             self.db.commit()
             self.db.refresh(payment)
+
+            # Create notification for the payment
+            self.notification_service.create_notification(
+                user_id=user_id,
+                title="payment.pending.tx",
+                action="PAYMENT",
+                data_json={
+                    "payment_id": payment.id,
+                    "amount": amount,
+                    "currency": currency,
+                    "description": description,
+                    "stripe_payment_intent_id": payment_intent.id
+                }
+            )
 
             return {
                 "payment": payment,

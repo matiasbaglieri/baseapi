@@ -41,6 +41,7 @@ class User(Base):
     city = relationship("City", back_populates="users")
     subscriptions = relationship("SubscriptionUser", back_populates="user")
     payments = relationship("Payment", back_populates="user")
+    notifications = relationship("Notification", back_populates="user")
 
     def set_password(self, password: str) -> None:
         """
