@@ -6,6 +6,7 @@ from models.payment import Payment
 from services.payment.payment_service import PaymentService
 from services.user import UserService
 from controllers.base import BaseController
+from schemas.payment import PaymentTransactionCreate, PaymentResponse
 from typing import List
 
 class PaymentController(BaseController[Payment]):
@@ -58,6 +59,52 @@ class PaymentController(BaseController[Payment]):
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail=f"An error occurred while retrieving payments: {str(e)}"
+                )
+
+        @self.router.post("/transaction", response_model=dict)
+        async def create_payment_transaction(
+            payment_data: PaymentTransactionCreate,
+            authorization: Optional[str] = Header(None),
+            db: Session = Depends(get_db)
+        ):
+            """
+            Create a new payment transaction
+            """
+            if not authorization or not authorization.startswith("Bearer "):
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid authorization header"
+                )
+            
+            try:
+                # Get current user from token
+                access_token = authorization.split(" ")[1]
+                user_service = UserService(db)
+                current_user = user_service.get_current_user(access_token)
+
+                # Initialize payment service
+                payment_service = PaymentService(db)
+                
+                # Create payment transaction
+                result = payment_service.create_payment_transaction(
+                    user_id=current_user.id,
+                    amount=payment_data.amount,
+                    currency=payment_data.currency,
+                    stripe_customer_id=payment_data.stripe_customer_id,
+                    description=payment_data.description
+                )
+                
+                return result
+                
+            except ValueError as e:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=str(e)
+                )
+            except Exception as e:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"An error occurred while creating payment: {str(e)}"
                 )
 
 # Create router instance

@@ -136,7 +136,11 @@ class StripeSubscriptionService:
             payment_type="SUBSCRIPTION",
             date=datetime.utcnow(),
             status="pending",  # Will be updated after Stripe confirmation
-            stripe_payment_intent_id=stripe_subscription.latest_invoice.payment_intent.id
+            stripe_payment_intent_id=stripe_subscription.latest_invoice.payment_intent.id,
+            data_json={
+                "client_secret": stripe_subscription.latest_invoice.payment_intent.client_secret,
+                "subscription_id": stripe_subscription.id,
+            }
         )
         self.db.add(payment)
         

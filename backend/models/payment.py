@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, JSON
 from sqlalchemy.orm import relationship
 from core.init_db  import Base
 from datetime import datetime
@@ -18,7 +18,8 @@ class Payment(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     payment_method = Column(String(50), nullable=False)  # e.g., 'stripe', 'paypal'
-    stripe_payment_intent_id = Column(String(100), nullable=True)  # For Stripe payments
+    stripe_payment_intent_id = Column(String(100), nullable=True) 
+    data_json = Column(JSON, nullable=True)  # For Stripe payments
     # Relationships
     user = relationship("User", back_populates="payments")
     subscription = relationship("Subscription", back_populates="payments")
