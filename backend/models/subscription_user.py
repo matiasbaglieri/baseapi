@@ -15,7 +15,8 @@ class SubscriptionUser(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     start_date = Column(DateTime, nullable=True) 
     end_date = Column(DateTime, nullable=True)  
-    
+    stripe_subscription_id = Column(String(100), nullable=True)
+    client_secret = Column(String(500), nullable=True)  # Stripe client secret if applicable
     # Relationships
     user = relationship("User", back_populates="subscriptions")
     subscription = relationship("Subscription", back_populates="subscription_users")

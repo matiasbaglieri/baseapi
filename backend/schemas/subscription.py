@@ -30,6 +30,22 @@ class SubscriptionUserCreate(BaseModel):
     payment_method: str
     amount: float
     currency: str = "USD"
+    stripe_subscription_id: Optional[str] = None
+    client_secret: Optional[str] = None
+    payment_type: str = "SUBSCRIPTION"
+    status: str = "active"
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
     
     class Config:
         from_attributes = True
+        json_schema_extra = {
+            "example": {
+                "subscription_id": 1,
+                "payment_method": "card",
+                "amount": 25.00,
+                "currency": "USD",
+                "payment_type": "SUBSCRIPTION",
+                "status": "active"
+            }
+        }

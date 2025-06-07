@@ -81,6 +81,16 @@ class StripeSubscriptionService:
         if not subscription:
             raise ValueError("Subscription not found")
 
+        # Get existing active subscriptions for the user
+        existing_active_subscriptions = self.db.query(SubscriptionUser).filter(
+            SubscriptionUser.user_id == user_id,
+            SubscriptionUser.status == "active"
+        ).all()
+
+        # Cancel existing subscriptions
+        for existing_sub in existing_active_subscriptions:
+            self.cancel_subscription(existing_sub.id)
+
         # Create Stripe subscription
         stripe_subscription = stripe.Subscription.create(
             customer=stripe_customer_id,
@@ -89,14 +99,98 @@ class StripeSubscriptionService:
             expand=['latest_invoice.payment_intent']
         )
 
+        # Check for existing subscription user
+        existing_subscription = self.db.query(SubscriptionUser).filter(
+            SubscriptionUser.user_id == user_id,
+            SubscriptionUser.subscription_id == subscription_id,
+            SubscriptionUser.status == "active"
+        ).first()
+
+        if existing_subscription:
+            # Update existing subscription
+            existing_subscription.stripe_subscription_id = stripe_subscription.id
+            existing_subscription.client_secret = stripe_subscription.latest_invoice.payment_intent.client_secret
+            subscription_user = existing_subscription
+        else:
+            # Create new subscription user record
+            subscription_user = SubscriptionUser(
+                user_id=user_id,
+                subscription_id=subscription_id,
+                status="active",
+                start_date=datetime.utcnow(),
+                stripe_subscription_id=stripe_subscription.id,
+                client_secret=stripe_subscription.latest_invoice.payment_intent.client_secret
+            )
+            self.db.add(subscription_user)
+
+        self.db.flush()  # Get subscription_user ID without committing
+
+        # Create payment record
+        payment = Payment(
+            user_id=user_id,
+            subscription_id=subscription_id,
+            subscription_user_id=subscription_user.id,
+            amount=subscription.amount,
+            currency=subscription.currency,
+            payment_method="stripe",
+            payment_type="SUBSCRIPTION",
+            date=datetime.utcnow(),
+            status="pending",  # Will be updated after Stripe confirmation
+            stripe_payment_intent_id=stripe_subscription.latest_invoice.payment_intent.id
+        )
+        self.db.add(payment)
+        
+        # Commit all changes
+        self.db.commit()
+        self.db.refresh(subscription_user)
+        self.db.refresh(payment)
+
         return {
             "subscription_id": stripe_subscription.id,
-            "client_secret": stripe_subscription.latest_invoice.payment_intent.client_secret
+            "client_secret": stripe_subscription.latest_invoice.payment_intent.client_secret,
+            "subscription_user_id": subscription_user.id
         }
 
-    def cancel_subscription(self, stripe_subscription_id: str) -> dict:
+    def cancel_stripe_subscription(self, stripe_subscription_id: str) -> dict:
         """Cancel a Stripe subscription"""
-        return stripe.Subscription.delete(stripe_subscription_id)
+        try:
+            return stripe.Subscription.delete(stripe_subscription_id)
+        except stripe.error.StripeError as e:
+            raise ValueError(f"Failed to cancel Stripe subscription: {str(e)}")
+
+    def cancel_subscription(self, subscription_user_id: int) -> dict:
+        """Cancel a subscription and its associated Stripe subscription"""
+        subscription_user = self.db.query(SubscriptionUser).filter(
+            SubscriptionUser.id == subscription_user_id
+        ).first()
+        
+        if not subscription_user:
+            raise ValueError("Subscription user not found")
+
+        # Cancel pending payments
+        pending_payments = self.db.query(Payment).filter(
+            Payment.subscription_user_id == subscription_user_id,
+            Payment.status == "pending"
+        ).all()
+        
+        for payment in pending_payments:
+            payment.status = "cancelled"
+            payment.updated_at = datetime.utcnow()
+
+        # Cancel Stripe subscription if exists
+        if subscription_user.stripe_subscription_id:
+            try:
+                self.cancel_stripe_subscription(subscription_user.stripe_subscription_id)
+            except ValueError as e:
+                # Log the error but continue with local cancellation
+                print(f"Error canceling Stripe subscription: {str(e)}")
+
+        # Update subscription user status
+        subscription_user.status = "cancelled"
+        subscription_user.updated_at = datetime.utcnow()
+        
+        self.db.commit()
+        return {"status": "success", "message": "Subscription cancelled successfully"}
 
     def get_subscription_status(self, stripe_subscription_id: str) -> dict:
         """Get the status of a Stripe subscription"""

@@ -17,7 +17,8 @@ class Payment(Base):
     payment_type = Column(String(50), nullable=False)  # e.g., 'SUBSCRIPTION', 'TX'
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
+    payment_method = Column(String(50), nullable=False)  # e.g., 'stripe', 'paypal'
+    stripe_payment_intent_id = Column(String(100), nullable=True)  # For Stripe payments
     # Relationships
     user = relationship("User", back_populates="payments")
     subscription = relationship("Subscription", back_populates="payments")
