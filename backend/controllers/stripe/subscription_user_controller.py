@@ -8,7 +8,7 @@ from models.subscription import Subscription
 from models.payment import Payment
 from services.user import UserService
 from services.stripe.subscription_user_service import SubscriptionUserService
-from controllers.base import BaseController
+from controllers.base_controller import BaseController
 from schemas.subscription import SubscriptionUserCreate
 
 class SubscriptionUserController(BaseController[SubscriptionUser]):

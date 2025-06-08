@@ -6,7 +6,7 @@ from models.notification import Notification
 from schemas.notification import NotificationCreate, NotificationUpdate, NotificationResponse
 from services.notification.notification_service import NotificationService
 from services.user import UserService
-from controllers.base import BaseController
+from controllers.base_controller import BaseController
 
 class NotificationController(BaseController[Notification]):
     def __init__(self):

@@ -1,4 +1,4 @@
-.PHONY: venv install start run alembic alembic-revision alembic-upgrade alembic-downgrade celery celery-beat clean-install
+.PHONY: venv install start alembic alembic-revision alembic-upgrade alembic-downgrade celery celery-beat clean-install docker-up docker-down docker-build docker-console-app docker-console-mysql docker-console-redis docker-console-celery docker-console-flower
 
 venv:
 	python3.11 -m venv env
@@ -12,7 +12,7 @@ clean-install: venv
 
 install: clean-install
 
-start run:
+start:
 	@if [ ! -f .env ]; then \
 		echo "Error: .env file not found. Please create .env file first."; \
 		exit 1; \
@@ -31,8 +31,32 @@ alembic-upgrade:
 alembic-downgrade:
 	. env/bin/activate && alembic downgrade -1
 
-celery:
-	. env/bin/activate && celery -A core.celery_app worker --loglevel=info
+mariadb-stop:
+	sudo port unload mariadb-10.3-server
+mariadb-start:
+	sudo port load mariadb-10.3-server
+# Docker commands
+docker-build:
+	@if [ ! -f .env ]; then \
+		echo "Error: .env file not found. Please create .env file first."; \
+		exit 1; \
+	fi
+	DOCKER_BUILDKIT=0 COMPOSE_HTTP_TIMEOUT=300 docker compose build
 
-celery-beat:
-	. env/bin/activate && celery -A core.celery_app beat --loglevel=info
+docker-up:
+	@if [ ! -f .env ]; then \
+		echo "Error: .env file not found. Please create .env file first."; \
+		exit 1; \
+	fi
+	COMPOSE_HTTP_TIMEOUT=300 docker compose up -d
+
+docker-down:
+	COMPOSE_HTTP_TIMEOUT=300 docker compose down
+
+# Docker console commands
+docker-console-app:
+	docker compose exec baseapi bash
+
+# Combined commands
+docker-start: docker-build docker-up
+docker-restart: docker-down docker-up

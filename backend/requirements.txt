@@ -19,4 +19,8 @@ urllib3<2.0.0
 pandas==2.0.3
 numpy==1.24.3
 stripe==7.11.0
-psycopg2-binary==2.9.9 
+psycopg2-binary==2.9.9
+# mysqlclient==2.2.1
+pymysql==1.1.0
+cryptography==41.0.5
+PyJWT==2.8.0 

@@ -8,10 +8,10 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Create database URL
-DATABASE_URL = f"mysql://{settings.MYSQL_USER}:{settings.MYSQL_PASSWORD}@{settings.MYSQL_HOST}:{settings.MYSQL_PORT}/{settings.MYSQL_DATABASE}"
+# Create database URL with pymysql driver
+DATABASE_URL = f"mysql+pymysql://{settings.MYSQL_USER}:{settings.MYSQL_PASSWORD}@{settings.MYSQL_HOST}:{settings.MYSQL_PORT}/{settings.MYSQL_DATABASE}"
 
-# Create SQLAlchemy engine
+# Create SQLAlchemy engine with pymysql
 engine = create_engine(
     DATABASE_URL,
     pool_pre_ping=True,
@@ -42,16 +42,19 @@ def init_db():
     """
     try:
         # Import all models here to ensure they are registered with Base.metadata
+        from models.country import Country
+        from models.city import City
         from models.user import User
         from models.session import Session
         from models.password_reset import PasswordReset
+        from models.notification import Notification
+        from models.payment import Payment
+        from models.subscription import Subscription
+        from models.subscription_user import SubscriptionUser
+        from models.email_verification import EmailVerification
         
-        # Create tables in the correct order
-        Base.metadata.create_all(bind=engine, tables=[
-            User.__table__,
-            Session.__table__,
-            PasswordReset.__table__
-        ])
+        # Create all tables at once
+        Base.metadata.create_all(bind=engine)
         logger.info("Database tables created successfully")
     except Exception as e:
         logger.error(f"Error creating database tables: {str(e)}")

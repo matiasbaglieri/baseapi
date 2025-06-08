@@ -10,7 +10,7 @@ from services.jwt.refresh_token_service import RefreshTokenService
 from core.jwt import JWTManager
 from models.session import Session as SessionModel
 from datetime import datetime, timedelta
-from controllers.base import BaseController
+from controllers.base_controller import BaseController
 from core.roles import UserRole
 from core.logger import logger
 from typing import Optional

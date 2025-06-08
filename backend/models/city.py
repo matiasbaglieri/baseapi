@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, Float, ForeignKey, CheckConstraint
 from sqlalchemy.orm import relationship
-from database import Base
+from core.init_db import Base
 
 class City(Base):
     __tablename__ = "cities"

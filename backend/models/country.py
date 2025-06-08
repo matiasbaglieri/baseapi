@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, Float, JSON, CheckConstraint, ForeignKey
 from sqlalchemy.orm import relationship, validates
-from database import Base
+from core.init_db import Base
 import re
 from typing import Optional, Union, List
 

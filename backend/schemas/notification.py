@@ -1,18 +1,25 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from typing import Optional
 from datetime import datetime
-from typing import Optional, Dict, Any
 
 class NotificationBase(BaseModel):
-    title: str
-    action: str
-    data_json: Optional[Dict[str, Any]] = None
-    
+    title: str = Field(..., description="Notification title")
+    message: str = Field(..., description="Notification message")
+    user_id: int = Field(..., description="ID of the user this notification belongs to")
+    is_read: bool = Field(False, description="Whether the notification is read")
+
+class NotificationCreate(NotificationBase):
+    pass
+
+class NotificationUpdate(BaseModel):
+    title: Optional[str] = Field(None, description="Notification title")
+    message: Optional[str] = Field(None, description="Notification message")
+    is_read: Optional[bool] = Field(None, description="Whether the notification is read")
+
 class NotificationResponse(NotificationBase):
     id: int
-    user_id: int
-    is_read: bool
     created_at: datetime
-    updated_at: datetime
+    updated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True 

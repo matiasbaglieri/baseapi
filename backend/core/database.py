@@ -4,9 +4,9 @@ from sqlalchemy.orm import sessionmaker
 from .config import settings
 
 # Construct database URL from settings
-DATABASE_URL = f"mysql://{settings.MYSQL_USER}:{settings.MYSQL_PASSWORD}@{settings.MYSQL_HOST}:{settings.MYSQL_PORT}/{settings.MYSQL_DATABASE}"
+DATABASE_URL = f"mysql+pymysql://{settings.MYSQL_USER}:{settings.MYSQL_PASSWORD}@{settings.MYSQL_HOST}:{settings.MYSQL_PORT}/{settings.MYSQL_DATABASE}"
 
-# Create SQLAlchemy engine
+# Create SQLAlchemy engine with pymysql
 engine = create_engine(
     DATABASE_URL,
     pool_pre_ping=True,

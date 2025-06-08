@@ -5,7 +5,7 @@ from core.database import get_db
 from models.payment import Payment
 from services.payment.payment_service import PaymentService
 from services.user import UserService
-from controllers.base import BaseController
+from controllers.base_controller import BaseController
 from schemas.payment import PaymentTransactionCreate, PaymentResponse
 from typing import List
 

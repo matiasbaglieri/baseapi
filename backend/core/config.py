@@ -4,6 +4,7 @@ from datetime import timedelta
 from pydantic_settings import BaseSettings
 from pydantic import Field, validator
 from typing import Optional, Dict, Any, List
+from functools import lru_cache
 
 # Load environment variables
 load_dotenv()
@@ -49,6 +50,11 @@ class Settings(BaseSettings):
         default="baseapi",
         description="MySQL database name"
     )
+    MYSQL_ROOT_PASSWORD: str = Field(
+        default="toor",
+        description="MySQL root password"
+    )
+    DATABASE_URL: Optional[str] = None
     
     # CORS settings
     CORS_ORIGINS: List[str] = Field(
@@ -177,6 +183,9 @@ class Settings(BaseSettings):
     MAILGUN_DOMAIN: str
     MAILGUN_FROM_EMAIL: str = "noreply@your-domain.com"
 
+    # Redis settings
+    REDIS_URL: str
+
     @property
     def JWT_ACCESS_TOKEN_EXPIRE(self) -> timedelta:
         """Get access token expiration time."""
@@ -209,5 +218,8 @@ class Settings(BaseSettings):
         env_file = ".env"
         case_sensitive = True
 
-# Create settings instance
-settings = Settings() 
+@lru_cache()
+def get_settings() -> Settings:
+    return Settings()
+
+settings = get_settings() 
