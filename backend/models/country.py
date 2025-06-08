@@ -11,7 +11,7 @@ class Country(Base):
     country_id = Column(Integer, index=True)
     name = Column(String(100), nullable=False, index=True)
     iso3 = Column(String(3), unique=True, nullable=False, index=True)
-    iso2 = Column(String(2), unique=True, nullable=False, index=True)
+    iso2 = Column(String(2), nullable=True, index=True)
     numeric_code = Column(String(3), nullable=True)
     phonecode = Column(String(20), nullable=True)
     capital = Column(String(100), nullable=True)
@@ -48,7 +48,9 @@ class Country(Base):
     @validates('iso2')
     def validate_iso2(self, key: str, value: str) -> str:
         """Validate ISO2 code format."""
-        if not value or not re.match(r'^[A-Z]{2}$', value):
+        if not value:
+            return None
+        if not re.match(r'^[A-Z]{2}$', value):
             raise ValueError('ISO2 code must be exactly 2 uppercase letters')
         return value
 

@@ -4,7 +4,7 @@ from models.country import Country
 from sqlalchemy import or_, func
 from typing import List, Optional
 import json
-import os
+import os,re
 from pathlib import Path
 import pandas as pd
 import ast
@@ -205,11 +205,12 @@ class CountryService:
                 
                 # Format iso2: strip whitespace and uppercase
                 iso2 = str(row[3]).strip().upper() if pd.notna(row[3]) else None
-                if iso2 is not None:
-                    # Remove any non-alphabetic characters and ensure exactly 2 letters
+                if iso2:
+                    # Remove any non-alphabetic characters
                     iso2 = ''.join(c for c in iso2 if c.isalpha())
-                    if len(iso2) != 2:
-                        print(f"WARNING: Country {row[1]} has invalid ISO2 code: '{iso2}' (length: {len(iso2)})")
+                    # Validate the ISO2 code
+                    if not re.match(r'^[A-Z]{2}$', iso2):
+                        print(f"WARNING: Country {row[1]} has invalid ISO2 code: '{iso2}'")
                         iso2 = None
                 
                 if existing_country:

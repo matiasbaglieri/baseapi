@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import pandas as pd
+import logging
 from schemas.city import CityCreate, CityUpdate, CityResponse, CitySearchParams, CitySearchResponse
 
 class CityService:
@@ -120,11 +121,16 @@ class CityService:
         Returns:
             dict: Statistics about the initialization process
         """
+        logger = logging.getLogger(__name__)
+        logger.info("Starting city initialization process")
+        
         # Get the path to the cities.csv file
         base_path = Path(__file__).parent.parent.parent
         cities_file = base_path / "dump" / "cities.csv"
+        logger.info(f"Looking for cities data file at: {cities_file}")
         
         if not cities_file.exists():
+            logger.error(f"Cities data file not found at {cities_file}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Cities data file not found"
@@ -132,8 +138,11 @@ class CityService:
         
         # Read CSV file using pandas
         try:
+            logger.info("Reading cities data from CSV file...")
             df = pd.read_csv(cities_file)
+            logger.info(f"Successfully loaded CSV file with {len(df)} rows")
         except Exception as e:
+            logger.error(f"Failed to read cities file: {str(e)}", exc_info=True)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Error reading cities file: {str(e)}"
@@ -144,75 +153,113 @@ class CityService:
         updated_cities = 0
         skipped_cities = 0
         error_cities = 0
+        batch_size = 100
         
-        # Process each city
-        for _, row in df.iterrows():
+        logger.info(f"Found {total_cities} cities in the CSV file")
+        
+        # Process cities in batches
+        for batch_start in range(0, total_cities, batch_size):
+            batch_end = min(batch_start + batch_size, total_cities)
+            logger.info(f"Processing batch {batch_start//batch_size + 1} (cities {batch_start+1} to {batch_end})")
+            
             try:
-                # Get country by ISO2 code
-                country = self.db.query(Country).filter(
-                    Country.country_id == int(row[5])
-                ).first()
+                # Process each city in the batch
+                for _, row in df.iloc[batch_start:batch_end].iterrows():
+                    try:
+                        city_name = str(row[1])
+                        country_id = int(row[5])
+                        city_id = int(row[0])
+                        logger.debug(f"Processing city: {city_name} (Country ID: {country_id}, City ID: {city_id})")
+                        
+                        # Get country by ID
+                        country = self.db.query(Country).filter(
+                            Country.country_id == country_id
+                        ).first()
+                        
+                        if not country:
+                            skipped_cities += 1
+                            logger.warning(f"Skipping city {city_name}: Country with ID {country_id} not found")
+                            continue  # Skip if country doesn't exist
+                        
+                        # Parse coordinates
+                        latitude = self._parse_coordinates(row[8])
+                        longitude = self._parse_coordinates(row[9])
+                        
+                        # Check if city already exists by city_id and country_id (composite key)
+                        existing_city = self.db.query(City).filter(
+                            City.city_id == city_id,
+                            City.country_id == country_id
+                        ).first()
+                        
+                        if existing_city:
+                            # Update existing city
+                            logger.info(f"Updating existing city: {existing_city.name}")
+                            existing_city.name = str(row[1])
+                            existing_city.state_id = str(row[2]) if pd.notna(row[2]) else None
+                            existing_city.state_code = str(row[3]) if pd.notna(row[3]) else None
+                            existing_city.state_name = str(row[4]) if pd.notna(row[4]) else None
+                            existing_city.country_id = country.id
+                            existing_city.country_code = str(row[6])
+                            existing_city.country_name = str(row[7])
+                            existing_city.latitude = latitude
+                            existing_city.longitude = longitude
+                            existing_city.wikiDataId = str(row[10]) if pd.notna(row[10]) else None
+                            updated_cities += 1
+                            logger.debug(f"Successfully updated city: {existing_city.name}")
+                        else:
+                            # Create new city
+                            logger.info(f"Creating new city: {str(row[1])}")
+                            new_city = City(
+                                city_id=city_id,
+                                name=str(row[1]),
+                                state_id=str(row[2]) if pd.notna(row[2]) else None,
+                                state_code=str(row[3]) if pd.notna(row[3]) else None,
+                                state_name=str(row[4]) if pd.notna(row[4]) else None,
+                                country_id=country.id,
+                                country_code=str(row[6]),
+                                country_name=str(row[7]),
+                                latitude=latitude,
+                                longitude=longitude,
+                                wikiDataId=str(row[10]) if pd.notna(row[10]) else None
+                            )
+                            self.db.add(new_city)
+                            added_cities += 1
+                            logger.debug(f"Successfully created new city: {new_city.name}")
+                    except Exception as e:
+                        error_cities += 1
+                        logger.error(f"Error processing city {row[1]}: {str(e)}", exc_info=True)
+                        continue
                 
-                if not country:
-                    skipped_cities += 1
-                    continue  # Skip if country doesn't exist
+                # Commit changes for this batch
+                logger.info(f"Committing changes for batch {batch_start//batch_size + 1}...")
+                self.db.commit()
+                logger.info(f"Successfully committed batch {batch_start//batch_size + 1}")
                 
-                # Parse coordinates
-                latitude = self._parse_coordinates(row[8])
-                longitude = self._parse_coordinates(row[9])
-                
-                # Check if city already exists
-                existing_city = self.db.query(City).filter(
-                    City.name == str(row[1]),
-                    City.country_id == int(row[5])
-                ).first()
-                
-                if existing_city:
-                    # Update existing city with type validation
-                    existing_city.city_id = int(row[0])
-                    existing_city.name = str(row[1])
-                    existing_city.state_id = str(row[2]) if pd.notna(row[2]) else None
-                    existing_city.state_code = str(row[3]) if pd.notna(row[3]) else None
-                    existing_city.state_name = str(row[4]) if pd.notna(row[4]) else None
-                    existing_city.country_id = country.id
-                    existing_city.country_code = str(row[6])
-                    existing_city.country_name = str(row[7])
-                    existing_city.latitude = latitude
-                    existing_city.longitude = longitude
-                    existing_city.wikiDataId = str(row[10]) if pd.notna(row[10]) else None
-                    updated_cities += 1
-                else:
-                    # Create new city with type validation
-                    new_city = City(
-                        city_id=int(row[0]),
-                        name=str(row[1]),
-                        state_id=str(row[2]) if pd.notna(row[2]) else None,
-                        state_code=str(row[3]) if pd.notna(row[3]) else None,
-                        state_name=str(row[4]) if pd.notna(row[4]) else None,
-                        country_id=int(row[5]),
-                        country_code=str(row[6]),
-                        country_name=str(row[7]),
-                        latitude=latitude,
-                        longitude=longitude,
-                        wikiDataId=str(row[10]) if pd.notna(row[10]) else None
-                    )
-                    self.db.add(new_city)
-                    added_cities += 1
             except Exception as e:
-                error_cities += 1
-                print(f"Error processing city {row[1]}: {str(e)}")
+                logger.error(f"Failed to process batch {batch_start//batch_size + 1}", exc_info=True)
+                self.db.rollback()
+                error_cities += (batch_end - batch_start)
                 continue
         
-        # Commit changes
-        self.db.commit()
-        
-        return {
+        # Prepare and log final statistics
+        stats = {
             "total_cities": total_cities,
             "added_cities": added_cities,
             "updated_cities": updated_cities,
             "skipped_cities": skipped_cities,
             "error_cities": error_cities
         }
+        
+        logger.info(
+            "City initialization completed with statistics:\n"
+            f"Total cities processed: {total_cities}\n"
+            f"Cities added: {added_cities}\n"
+            f"Cities updated: {updated_cities}\n"
+            f"Cities skipped: {skipped_cities}\n"
+            f"Cities with errors: {error_cities}"
+        )
+        
+        return stats
 
     def get_city(self, city_id: int) -> Optional[City]:
         """Get a city by ID."""

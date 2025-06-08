@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, CheckConstraint
+from sqlalchemy import Column, Integer, String, Float, ForeignKey, CheckConstraint, Index
 from sqlalchemy.orm import relationship
 from core.init_db import Base
 
@@ -16,7 +16,7 @@ class City(Base):
     country_name = Column(String(100), nullable=False)
     latitude = Column(Float, nullable=True)
     longitude = Column(Float, nullable=True)
-    wikiDataId = Column(String(50), unique=True, nullable=True, index=True)
+    wikiDataId = Column(String(50), nullable=True, index=True)
 
     # Add relationship with Users
     users = relationship("User", back_populates="city")
