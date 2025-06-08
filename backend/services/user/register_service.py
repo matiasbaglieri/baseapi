@@ -15,6 +15,8 @@ from core.logger import logger
 from services.country.country_service import CountryService
 from core.config import settings
 from services.city.city_service import CityService
+from models.country import Country
+from models.city import City
 
 # Load environment variables
 load_dotenv()
@@ -57,24 +59,28 @@ class RegisterService:
             
             # Validate country if provided
             country = None
-            if data.country or data.country_code:
-                country = self.country_service.validate_country(
-                    country_name=data.country,
-                    country_code=data.country_code
-                )
-            if not country:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Invalid country"
-                )
+            if data.country_id:
+                country = self.db.query(Country).filter(Country.id == data.country_id).first()
+                if not country:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Country with ID {data.country_id} not found"
+                    )
+                print(country)
 
             # Validate city if provided
             city = None
-            if data.city and country:
-                city = self.city_service.validate_city(
-                    city_name=data.city,
-                    country_id=country.country_id
-                )
+            if data.city_id and country:
+                city = self.db.query(City).filter(
+                    City.id == data.city_id,
+                    City.country_id == data.country_id
+                ).first()
+                if not city:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"City with ID {data.city_id} not found in country {country.country_id}"
+                    )
+                print(city)
             
             # Create new user
             new_user = User(
@@ -82,13 +88,16 @@ class RegisterService:
                 first_name=data.first_name,
                 last_name=data.last_name,
                 role=UserRole.USER.value,  # Default role
-                country_id=country.id if country else None,
-                city_id=city.id if city else None,
+                country_id=country.country_id if country else None,
+                city_id=city.city_id if city else None,
                 language=data.language or 'en',  # Use provided language or default to 'en'
                 subscription='FREE'
             )
+            
+            # Set password
             new_user.set_password(data.password)
             
+            # Add user to database
             self.db.add(new_user)
             self.db.flush()  # Flush to get the user ID
             

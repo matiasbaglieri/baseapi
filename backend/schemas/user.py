@@ -20,21 +20,19 @@ class RegisterRequest(BaseModel):
     password: constr(min_length=8) = Field(..., description="User's password")
     first_name: constr(min_length=2, max_length=100) = Field(..., description="User's first name")
     last_name: constr(min_length=2, max_length=100) = Field(..., description="User's last name")
-    country: Optional[str] = Field(None, description="Country name")
-    country_code: Optional[str] = Field(None, description="ISO2 or ISO3 country code")
-    city: Optional[str] = Field(None, description="City name")
+    country_id: Optional[int] = Field(None, description="ID of the user's country")
+    city_id: Optional[int] = Field(None, description="ID of the user's city")
     language: Optional[str] = Field('en', description="User's preferred language (ISO 639-2 code)")
 
     class Config:
         json_schema_extra = {
             "example": {
                 "email": "user@example.com",
-                "password": "password123",
+                "password": "securepassword",
                 "first_name": "John",
                 "last_name": "Doe",
-                "country": "United States",
-                "country_code": "US",
-                "city": "New York",
+                "country_id": 1,
+                "city_id": 1,
                 "language": "en"
             }
         }
@@ -99,16 +97,15 @@ class UserUpdate(BaseModel):
 class UserResponse(UserBase):
     id: int
     is_active: bool
-    created_at: datetime
-    updated_at: datetime
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
     profile_picture: Optional[str] = None
     phone_number: Optional[str] = None
     address: Optional[str] = None
     is_verified: bool
     role: UserRole
-    country: Optional[str] = None
-    country_code: Optional[str] = None
-    city: Optional[str] = None
+    country_id: Optional[int] = None
+    city_id: Optional[int] = None
     language: str = 'en'
 
     class Config:

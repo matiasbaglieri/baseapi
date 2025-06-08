@@ -3,7 +3,6 @@ from typing import Optional, List
 from datetime import datetime
 
 class CityBase(BaseModel):
-    city_id: int
     name: str
     state_id: int
     state_code: Optional[str] = None

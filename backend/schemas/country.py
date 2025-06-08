@@ -25,7 +25,6 @@ class CountryBase(BaseModel):
 
 class CountryResponse(CountryBase):
     id: int
-    country_id: int
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
