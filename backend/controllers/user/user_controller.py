@@ -21,7 +21,7 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 class UserController(BaseController[User]):
     def __init__(self):
         super().__init__(User)
-        self.router = APIRouter(prefix="/users", tags=["users"])
+        self.router = APIRouter(tags=["users"])
         self.setup_routes()
 
     def setup_routes(self):

@@ -11,7 +11,7 @@ import requests
 
 class EmailValidatorController:
     def __init__(self):
-        self.router = APIRouter(prefix="/email", tags=["email"])
+        self.router = APIRouter(tags=["email"])
         self.setup_routes()
 
     def setup_routes(self):

@@ -18,35 +18,50 @@ class StripeSubscriptionService:
         self.notification_service = NotificationService(db)
 
     def create_subscription(self, name: str, subscription_type: str, currency: str, amount: float) -> Subscription:
-        # Create Stripe product
-        stripe_product = stripe.Product.create(
-            name=name,
-            description=f"{name} subscription plan"
-        )
+        """
+        Create a new subscription plan
+        """
+        try:
+            # Create Stripe product
+            product = stripe.Product.create(
+                name=name,
+                description=f"{name} subscription plan"
+            )
 
-        # Create Stripe price
-        stripe_price = stripe.Price.create(
-            product=stripe_product.id,
-            unit_amount=int(amount * 100),  # Convert to cents
-            currency=currency.lower(),
-            recurring={
-                "interval": subscription_type
+            # Create Stripe price
+            price_data = {
+                "product": product.id,
+                "unit_amount": int(amount * 100),  # Convert to cents
+                "currency": currency.lower(),
+                "recurring": {
+                    "interval": subscription_type
+                }
             }
-        )
 
-        # Create local subscription
-        subscription = Subscription(
-            name=name,
-            subscription_type=subscription_type,
-            currency=currency,
-            amount=amount,
-            stripe_product_id=stripe_product.id,
-            stripe_price_id=stripe_price.id
-        )
-        self.db.add(subscription)
-        self.db.commit()
-        self.db.refresh(subscription)
-        return subscription
+            stripe_price = stripe.Price.create(**price_data)
+
+            # Create subscription record
+            subscription = Subscription(
+                name=name,
+                subscription_type=subscription_type,
+                currency=currency,
+                amount=amount,
+                stripe_product_id=product.id,
+                stripe_price_id=stripe_price.id
+            )
+            
+            self.db.add(subscription)
+            self.db.commit()
+            self.db.refresh(subscription)
+            
+            return subscription
+
+        except stripe.error.StripeError as e:
+            self.db.rollback()
+            raise ValueError(f"Stripe error: {str(e)}")
+        except Exception as e:
+            self.db.rollback()
+            raise ValueError(f"Error creating subscription: {str(e)}")
 
     def get_subscription(self, subscription_id: int) -> Optional[Subscription]:
         return self.db.query(Subscription).filter(Subscription.id == subscription_id).first()
@@ -60,10 +75,18 @@ class StripeSubscriptionService:
         if existing_subscriptions:
             return existing_subscriptions
 
+        # Create FREE subscription
+        free_subscription = self.create_subscription(
+            name="FREE",
+            subscription_type="month",
+            currency="USD",
+            amount=0.00
+        )
+
         # Create PRO subscription
         pro_subscription = self.create_subscription(
             name="PRO",
-            subscription_type="monthly",
+            subscription_type="month",
             currency="USD",
             amount=25.00
         )
@@ -71,12 +94,12 @@ class StripeSubscriptionService:
         # Create CORPORATE subscription
         corporate_subscription = self.create_subscription(
             name="CORPORATE",
-            subscription_type="monthly",
+            subscription_type="month",
             currency="USD",
             amount=100.00
         )
 
-        return [pro_subscription, corporate_subscription]
+        return [free_subscription, pro_subscription, corporate_subscription]
 
     def create_customer_subscription(self, user_id: int, subscription_id: int, stripe_customer_id: str) -> dict:
         """Create a subscription for a customer in Stripe"""
@@ -258,69 +281,6 @@ class StripeSubscriptionService:
             "page": (skip // limit) + 1,
             "per_page": limit
         }
-
-    def create_subscription(
-        self,
-        name: str,
-        description: str,
-        price: float,
-        currency: str,
-        interval: str,
-        interval_count: int,
-        trial_period_days: int = None
-    ) -> Subscription:
-        """
-        Create a new subscription plan
-        """
-        try:
-            # Create Stripe product
-            product = stripe.Product.create(
-                name=name,
-                description=description
-            )
-
-            # Create Stripe price
-            price_data = {
-                "product": product.id,
-                "unit_amount": int(price * 100),  # Convert to cents
-                "currency": currency.lower(),
-                "recurring": {
-                    "interval": interval,
-                    "interval_count": interval_count
-                }
-            }
-
-            if trial_period_days:
-                price_data["recurring"]["trial_period_days"] = trial_period_days
-
-            stripe_price = stripe.Price.create(**price_data)
-
-            # Create subscription record
-            subscription = Subscription(
-                name=name,
-                description=description,
-                price=price,
-                currency=currency,
-                interval=interval,
-                interval_count=interval_count,
-                trial_period_days=trial_period_days,
-                stripe_product_id=product.id,
-                stripe_price_id=stripe_price.id,
-                is_active=True
-            )
-            
-            self.db.add(subscription)
-            self.db.commit()
-            self.db.refresh(subscription)
-            
-            return subscription
-
-        except stripe.error.StripeError as e:
-            self.db.rollback()
-            raise ValueError(f"Stripe error: {str(e)}")
-        except Exception as e:
-            self.db.rollback()
-            raise ValueError(f"Error creating subscription: {str(e)}")
 
     def subscribe_user(
         self,

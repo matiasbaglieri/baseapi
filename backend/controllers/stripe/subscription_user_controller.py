@@ -40,7 +40,7 @@ class SubscriptionUserController(BaseController[SubscriptionUser]):
                 current_user = user_service.get_current_user(access_token)
 
                 # Initialize subscription user service
-                subscription_user_service = SubscriptionUserService(db, os.getenv("STRIPE_API_KEY"))
+                subscription_user_service = SubscriptionUserService(db)
                 
                 # Create subscription and associated payment
                 result = await subscription_user_service.create_user_subscription(

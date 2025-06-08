@@ -8,12 +8,11 @@ from schemas.subscription import SubscriptionCreate, SubscriptionResponse
 from core.config import settings
 
 router = APIRouter(
-    prefix="/subscriptions",
     tags=["subscriptions"]
 )
 
 def get_subscription_service(db: Session = Depends(get_db)) -> StripeSubscriptionService:
-    return StripeSubscriptionService(db, settings.STRIPE_API_KEY)
+    return StripeSubscriptionService(db)
 
 @router.post("/init", response_model=List[SubscriptionResponse])
 def init_subscriptions(

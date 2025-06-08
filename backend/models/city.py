@@ -18,6 +18,8 @@ class City(Base):
     longitude = Column(Float, nullable=True)
     wikiDataId = Column(String(50), unique=True, nullable=True, index=True)
 
+    # Add relationship with Users
+    users = relationship("User", back_populates="city")
 
     # Add constraints for coordinates
     __table_args__ = (
