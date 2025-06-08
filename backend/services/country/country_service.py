@@ -8,6 +8,7 @@ import os,re
 from pathlib import Path
 import pandas as pd
 import ast
+from schemas.country import CountrySearchParams, CountrySearchResponse, CountryResponse
 
 class CountryService:
     def __init__(self, db: Session):
@@ -91,36 +92,44 @@ class CountryService:
             return self.find_by_code(country_code)
         return self.find_by_name(country_name)
 
-    def search_countries(
-        self,
-        name: Optional[str] = None,
-        limit: int = 10,
-        offset: int = 0
-    ) -> List[Country]:
+    def search_countries(self, params: CountrySearchParams) -> CountrySearchResponse:
         """
-        Search for countries by name.
+        Search for countries with various filters and pagination.
         
         Args:
-            name (str, optional): Partial name to search for
-            limit (int): Maximum number of results to return
-            offset (int): Number of results to skip
+            params (CountrySearchParams): Search parameters including name, iso2, iso3, region, etc.
             
         Returns:
-            List[Country]: List of matching countries
+            CountrySearchResponse: Search results with pagination info
         """
         query = self.db.query(Country)
-
-        # Apply name filter if provided
-        if name:
-            query = query.filter(func.lower(Country.name).like(f"%{name.lower()}%"))
         
-        # Add ordering
-        query = query.order_by(Country.name)
+        # Apply filters
+        if params.name:
+            query = query.filter(func.lower(Country.name).like(f"%{params.name.lower()}%"))
+        if params.iso2:
+            query = query.filter(Country.iso2 == params.iso2.upper())
+        if params.iso3:
+            query = query.filter(Country.iso3 == params.iso3.upper())
+        if params.region:
+            query = query.filter(func.lower(Country.region).like(f"%{params.region.lower()}%"))
+        if params.subregion:
+            query = query.filter(func.lower(Country.subregion).like(f"%{params.subregion.lower()}%"))
+        if params.currency:
+            query = query.filter(func.lower(Country.currency).like(f"%{params.currency.lower()}%"))
+        
+        # Get total count before pagination
+        total = query.count()
         
         # Apply pagination
-        query = query.limit(limit).offset(offset)
+        countries = query.order_by(Country.name).offset(params.offset).limit(params.limit).all()
         
-        return query.all()
+        return CountrySearchResponse(
+            message="Countries found successfully",
+            status="success",
+            data=[CountryResponse.from_orm(country) for country in countries],
+            total=total
+        )
 
     def _parse_timezones(self, timezones_str: str) -> Optional[List[dict]]:
         """Parse timezones string to JSON list."""

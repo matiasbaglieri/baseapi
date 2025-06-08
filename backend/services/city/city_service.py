@@ -69,41 +69,6 @@ class CityService:
 
         return self.find_by_name(city_name, country_id)
 
-    def search_cities(
-        self,
-        name: Optional[str] = None,
-        country_id: Optional[int] = None,
-        limit: int = 10,
-        offset: int = 0
-    ) -> List[City]:
-        """
-        Search for cities by name and/or country_id.
-        
-        Args:
-            name (str, optional): Partial name to search for
-            country_id (int, optional): Country ID to filter by
-            limit (int): Maximum number of results to return
-            offset (int): Number of results to skip
-            
-        Returns:
-            List[City]: List of matching cities
-        """
-        query = self.db.query(City)
-
-        # Apply filters
-        if name:
-            query = query.filter(func.lower(City.name).like(f"%{name.lower()}%"))
-        
-        if country_id:
-            query = query.filter(City.country_id == country_id)
-        
-        # Add ordering
-        query = query.order_by(City.name)
-        
-        # Apply pagination
-        query = query.limit(limit).offset(offset)
-        
-        return query.all()
 
     def _parse_coordinates(self, value: str) -> Optional[float]:
         """Parse coordinate string to float."""
@@ -311,7 +276,7 @@ class CityService:
         Search for cities with various filters and pagination.
         
         Args:
-            params (CitySearchParams): Search parameters including name, country_id, and pagination
+            params (CitySearchParams): Search parameters including name, country_id, state_id, etc.
             
         Returns:
             CitySearchResponse: Search results with pagination info
@@ -320,9 +285,19 @@ class CityService:
         
         # Apply filters
         if params.name:
-            query = query.filter(City.name.ilike(f"%{params.name}%"))
+            query = query.filter(func.lower(City.name).like(f"%{params.name.lower()}%"))
         if params.country_id:
             query = query.filter(City.country_id == params.country_id)
+        if params.state_id:
+            query = query.filter(City.state_id == params.state_id)
+        if params.state_code:
+            query = query.filter(City.state_code == params.state_code.upper())
+        if params.state_name:
+            query = query.filter(func.lower(City.state_name).like(f"%{params.state_name}%"))
+        if params.country_code:
+            query = query.filter(City.country_code == params.country_code.upper())
+        if params.wikiDataId:
+            query = query.filter(City.wikiDataId == params.wikiDataId)
         
         # Get total count before pagination
         total = query.count()

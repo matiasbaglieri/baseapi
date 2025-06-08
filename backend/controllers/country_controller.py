@@ -36,28 +36,32 @@ async def init_countries(db: Session = Depends(get_db)):
 @router.get("/search", response_model=CountrySearchResponse)
 async def search_countries(
     name: Optional[str] = Query(None, description="Partial name to search for"),
+    iso2: Optional[str] = Query(None, description="ISO2 country code"),
+    iso3: Optional[str] = Query(None, description="ISO3 country code"),
+    region: Optional[str] = Query(None, description="Region name"),
+    subregion: Optional[str] = Query(None, description="Subregion name"),
+    currency: Optional[str] = Query(None, description="Currency code"),
     limit: int = Query(10, description="Maximum number of results to return"),
     offset: int = Query(0, description="Number of results to skip"),
     db: Session = Depends(get_db)
 ):
     """
-    Search for countries by name.
+    Search for countries with various filters.
     Returns a list of countries that match the search criteria.
     """
     try:
         country_service = CountryService(db)
-        countries = country_service.search_countries(
+        search_params = CountrySearchParams(
             name=name,
-            limit=limit,
-            offset=offset
+            iso2=iso2,
+            iso3=iso3,
+            region=region,
+            subregion=subregion,
+            currency=currency,
+            page=offset // limit + 1,
+            per_page=limit
         )
-        
-        return {
-            "message": "Countries found successfully",
-            "status": "success",
-            "data": countries,
-            "total": len(countries)
-        }
+        return country_service.search_countries(search_params)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

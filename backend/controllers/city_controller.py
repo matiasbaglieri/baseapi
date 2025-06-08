@@ -37,29 +37,33 @@ async def init_cities(db: Session = Depends(get_db)):
 async def search_cities(
     name: Optional[str] = Query(None, description="Partial name to search for"),
     country_id: Optional[int] = Query(None, description="Country ID to filter by"),
+    state_id: Optional[int] = Query(None, description="State ID to filter by"),
+    state_code: Optional[str] = Query(None, description="State code to filter by"),
+    state_name: Optional[str] = Query(None, description="Partial state name to search for"),
+    country_code: Optional[str] = Query(None, description="Country code to filter by"),
+    wikiDataId: Optional[str] = Query(None, description="WikiData ID to filter by"),
     limit: int = Query(10, description="Maximum number of results to return"),
     offset: int = Query(0, description="Number of results to skip"),
     db: Session = Depends(get_db)
 ):
     """
-    Search for cities by name and/or country_id.
-    If name is not provided, it will search by country_id only.
+    Search for cities with various filters.
+    Returns a list of cities that match the search criteria.
     """
     try:
         city_service = CityService(db)
-        cities = city_service.search_cities(
+        search_params = CitySearchParams(
             name=name,
             country_id=country_id,
-            limit=limit,
-            offset=offset
+            state_id=state_id,
+            state_code=state_code,
+            state_name=state_name,
+            country_code=country_code,
+            wikiDataId=wikiDataId,
+            page=offset // limit + 1,
+            per_page=limit
         )
-        
-        return {
-            "message": "Cities found successfully",
-            "status": "success",
-            "data": cities,
-            "total": len(cities)
-        }
+        return city_service.search_cities(search_params)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
