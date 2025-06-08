@@ -189,14 +189,37 @@ class CountryService:
                 latitude = self._parse_coordinates(row[18])
                 longitude = self._parse_coordinates(row[19])
                 
+                # Format phonecode: prepend '+' if not empty and doesn't start with it
+                phonecode = str(row[5]) if pd.notna(row[5]) else None
+                if phonecode and not phonecode.startswith('+'):
+                    phonecode = f'+{phonecode}'
+                
+                # Format numeric_code: always 3 digits, zero-padded
+                raw_numeric_code = row[4]
+                numeric_code = None
+                if pd.notna(raw_numeric_code):
+                    try:
+                        numeric_code = f"{int(raw_numeric_code):03d}"
+                    except Exception:
+                        numeric_code = str(raw_numeric_code)
+                
+                # Format iso2: strip whitespace and uppercase
+                iso2 = str(row[3]).strip().upper() if pd.notna(row[3]) else None
+                if iso2 is not None:
+                    # Remove any non-alphabetic characters and ensure exactly 2 letters
+                    iso2 = ''.join(c for c in iso2 if c.isalpha())
+                    if len(iso2) != 2:
+                        print(f"WARNING: Country {row[1]} has invalid ISO2 code: '{iso2}' (length: {len(iso2)})")
+                        iso2 = None
+                
                 if existing_country:
                     # Update existing country with type validation
                     existing_country.country_id = int(row[0])
                     existing_country.name = str(row[1])
                     existing_country.iso3 = str(row[2])
-                    existing_country.iso2 = str(row[3])
-                    existing_country.numeric_code = str(row[4]) if pd.notna(row[4]) else None
-                    existing_country.phonecode = str(row[5]) if pd.notna(row[5]) else None
+                    existing_country.iso2 = iso2
+                    existing_country.numeric_code = numeric_code
+                    existing_country.phonecode = phonecode
                     existing_country.capital = str(row[6]) if pd.notna(row[6]) else None
                     existing_country.currency = str(row[7]) if pd.notna(row[7]) else None
                     existing_country.currency_name = str(row[8]) if pd.notna(row[8]) else None
@@ -218,9 +241,9 @@ class CountryService:
                         country_id=int(row[0]),
                         name=str(row[1]),
                         iso3=str(row[2]),
-                        iso2=str(row[3]),
-                        numeric_code=str(row[4]) if pd.notna(row[4]) else None,
-                        phonecode=str(row[5]) if pd.notna(row[5]) else None,
+                        iso2=iso2,
+                        numeric_code=numeric_code,
+                        phonecode=phonecode,
                         capital=str(row[6]) if pd.notna(row[6]) else None,
                         currency=str(row[7]) if pd.notna(row[7]) else None,
                         currency_name=str(row[8]) if pd.notna(row[8]) else None,
