@@ -9,7 +9,7 @@ import os
 from pathlib import Path
 import pandas as pd
 import logging
-from schemas.city import CityCreate, CityUpdate, CityResponse, CitySearchParams, CitySearchResponse
+from schemas.city import CityCreate, CityUpdate, CityResponse, CitySearchParams, CitySearchResponse, StateSearchResponse, StateResponse
 
 class CityService:
     def __init__(self, db: Session):
@@ -310,4 +310,47 @@ class CityService:
             status="success",
             data=[CityResponse.from_orm(city) for city in cities],
             total=total
+        )
+
+    def search_states_by_country(self, country_id: int) -> StateSearchResponse:
+        """
+        Search for states in a country, grouped by state_name.
+        
+        Args:
+            country_id (int): Country ID to filter by
+            
+        Returns:
+            StateSearchResponse: List of unique states in the country
+        """
+        # Query to get unique states for the country
+        query = self.db.query(
+            City.state_id,
+            City.state_name,
+            City.state_code,
+            City.country_id,
+            City.country_code,
+            City.country_name
+        ).filter(
+            City.country_id == country_id
+        ).distinct(
+            City.state_id
+        ).order_by(
+            City.state_name
+        )
+        
+        # Execute query
+        states = query.all()
+        
+        return StateSearchResponse(
+            message="States found successfully",
+            status="success",
+            data=[StateResponse(
+                state_id=state.state_id,
+                state_name=state.state_name,
+                state_code=state.state_code,
+                country_id=state.country_id,
+                country_code=state.country_code,
+                country_name=state.country_name
+            ) for state in states],
+            total=len(states)
         ) 

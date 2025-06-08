@@ -1,9 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Path
 from sqlalchemy.orm import Session
 from core.database import get_db
 from services.city.city_service import CityService
 from schemas.base import BaseResponse
-from schemas.city import CitySearchParams, CitySearchResponse
+from schemas.city import CitySearchParams, CitySearchResponse, StateSearchResponse
 from typing import Optional
 
 router = APIRouter()
@@ -64,6 +64,24 @@ async def search_cities(
             per_page=limit
         )
         return city_service.search_cities(search_params)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+@router.get("/states/{country_id}", response_model=StateSearchResponse)
+async def search_states_by_country(
+    country_id: int = Path(..., description="Country ID to get states for"),
+    db: Session = Depends(get_db)
+):
+    """
+    Get all states in a country.
+    Returns a list of unique states that belong to the specified country.
+    """
+    try:
+        city_service = CityService(db)
+        return city_service.search_states_by_country(country_id)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
