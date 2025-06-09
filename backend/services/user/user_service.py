@@ -6,13 +6,15 @@ from sqlalchemy import and_
 from datetime import datetime, timedelta
 from core.jwt import JWTManager
 from core.logger import logger
-from schemas.user import UserUpdate
+from schemas.user import UserUpdate, UserResponse
 import jwt
 from core import settings
 import secrets
 from core.security import get_password_hash, verify_password
 from typing import Optional
 from tasks.email_tasks import send_password_change_notification
+from models.country import Country
+from models.city import City
 
 class UserService:
     def __init__(self, db: Session):
@@ -64,7 +66,28 @@ class UserService:
             session.last_activity = datetime.utcnow()
             self.db.commit()
 
-            return user
+            country_name = None
+            country_code = None
+            city_name = None
+            
+            if user.country_id:
+                country = self.db.query(Country).filter(Country.id == user.country_id).first()
+                if country:
+                    country_name = country.name
+                    country_code = country.iso2
+            
+            if user.city_id:
+                city = self.db.query(City).filter(City.id == user.city_id).first()
+                if city:
+                    city_name = city.name
+            
+            # Create response with country and city names
+            response = UserResponse.from_orm(user)
+            response.country_name = country_name
+            response.country_code = country_code
+            response.city_name = city_name
+            
+            return response
 
         except HTTPException:
             raise
@@ -75,7 +98,7 @@ class UserService:
                 detail="An error occurred while fetching user data"
             )
 
-    def update_user_profile(self, user_id: int, update_data: UserUpdate) -> User:
+    def update_user_profile(self, user_id: int, update_data: UserUpdate) -> UserResponse:
         """
         Update user profile information.
         
@@ -84,7 +107,7 @@ class UserService:
             update_data (UserUpdate): Data to update
             
         Returns:
-            User: Updated user object
+            UserResponse: Updated user data with country and city names
             
         Raises:
             HTTPException: If user not found or other errors occur
@@ -100,8 +123,36 @@ class UserService:
 
             # Update only the fields that are provided
             update_dict = update_data.dict(exclude_unset=True)
+            
+            # Handle country_id if provided
+            if 'country_id' in update_dict:
+                country = self.db.query(Country).filter(Country.id == update_dict['country_id']).first()
+                if not country:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Invalid country ID"
+                    )
+                user.country_id = country.id
+            # Handle city_id if provided
+            if 'city_id' in update_dict:
+                city = self.db.query(City).filter(City.id == update_dict['city_id']).first()
+                if not city:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Invalid city ID"
+                    )
+                # Verify city belongs to selected country
+                if user.country_id and city.country_id != user.country_id:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="City does not belong to selected country"
+                    )
+                user.city_id = city.id
+
+            # Update other fields
             for field, value in update_dict.items():
-                setattr(user, field, value)
+                if field not in ['country_id', 'city_id']:
+                    setattr(user, field, value)
 
             # Update the updated_at timestamp
             user.updated_at = datetime.utcnow()
@@ -109,8 +160,30 @@ class UserService:
             self.db.commit()
             self.db.refresh(user)
             
+            # Get country and city names
+            country_name = None
+            country_code = None
+            city_name = None
+            
+            if user.country_id:
+                country = self.db.query(Country).filter(Country.id == user.country_id).first()
+                if country:
+                    country_name = country.name
+                    country_code = country.iso2
+            
+            if user.city_id:
+                city = self.db.query(City).filter(City.id == user.city_id).first()
+                if city:
+                    city_name = city.name
+            
+            # Create response with country and city names
+            response = UserResponse.from_orm(user)
+            response.country_name = country_name
+            response.country_code = country_code
+            response.city_name = city_name
+            
             logger.info(f"User profile updated successfully for user: {user.email}")
-            return user
+            return response
 
         except HTTPException:
             raise

@@ -93,7 +93,10 @@ class UserUpdate(BaseModel):
     profile_picture: Optional[str] = None
     phone_number: Optional[str] = None
     address: Optional[str] = None
-
+    country_id: Optional[int] = None
+    city_id: Optional[int] = None
+    language: Optional[str] = None
+    
 class UserResponse(UserBase):
     id: int
     is_active: bool
@@ -104,8 +107,9 @@ class UserResponse(UserBase):
     address: Optional[str] = None
     is_verified: bool
     role: UserRole
-    country_id: Optional[int] = None
-    city_id: Optional[int] = None
+    country_name: Optional[str] = None
+    country_code: Optional[str] = None
+    city_name: Optional[str] = None
     language: str = 'en'
 
     class Config:
