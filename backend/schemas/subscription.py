@@ -7,9 +7,17 @@ class SubscriptionBase(BaseModel):
     subscription_type: str
     currency: str
     price: float
+    features: Optional[Dict[str, Any]] = None
 
 class SubscriptionCreate(SubscriptionBase):
     pass
+
+class SubscriptionUpdate(SubscriptionBase):
+    name: Optional[str] = None
+    subscription_type: Optional[str] = None
+    currency: Optional[str] = None
+    price: Optional[float] = None
+    features: Optional[Dict[str, Any]] = None
 
 class SubscriptionResponse(SubscriptionBase):
     id: int

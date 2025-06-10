@@ -133,25 +133,8 @@ class StripeSubscriptionService:
         result = []
         
         for subscription in subscriptions:
-            # Get features with default values
+            # Ensure features are loaded and not None
             features = subscription.features or {}
-            
-            # Ensure all expected features are present with default values
-            default_features = {
-                "api_calls": 0,
-                "support": "None",
-                "advanced_features": False,
-                "dedicated_support": False,
-                "custom_domains": 0,
-                "team_members": 0,
-                "storage": "0GB",
-                "priority_support": False,
-                "sla": "None",
-                "custom_integrations": False
-            }
-            
-            # Merge default features with actual features
-            merged_features = {**default_features, **features}
             
             subscription_data = {
                 "id": subscription.id,
@@ -159,7 +142,7 @@ class StripeSubscriptionService:
                 "subscription_type": subscription.subscription_type,
                 "currency": subscription.currency,
                 "price": subscription.price,
-                "features": merged_features,
+                "features": features,
                 "is_active": subscription.is_active,
                 "stripe_price_id": subscription.stripe_price_id,
                 "stripe_product_id": subscription.stripe_product_id,
