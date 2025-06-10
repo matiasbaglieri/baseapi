@@ -1,6 +1,6 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, JSON
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Boolean, Float, Text, JSON
 from sqlalchemy.orm import relationship
-from core.init_db  import Base
+from core.init_db import Base
 from datetime import datetime
 
 class Subscription(Base):
@@ -8,17 +8,20 @@ class Subscription(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), nullable=False)
-    subscription_type = Column(String(50), nullable=False)  # e.g., 'monthly', 'yearly', 'lifetime'
-    currency = Column(String(3), nullable=False)  # e.g., 'USD', 'EUR'
-    amount = Column(Float, nullable=False)
-    stripe_product_id = Column(String(100), nullable=True)
-    stripe_price_id = Column(String(100), nullable=True)
+    description = Column(Text, nullable=True)
+    price = Column(Float, nullable=False)
+    currency = Column(String(3), default="USD")
+    duration = Column(Integer, nullable=False)  # Duration in days
+    features = Column(JSON, nullable=True)
+    is_active = Column(Boolean, default=True)
+    stripe_price_id = Column(String(255), nullable=True)
+    stripe_product_id = Column(String(255), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    # Relationships
-    subscription_users = relationship("SubscriptionUser", back_populates="subscription")
-    payments = relationship("Payment", back_populates="subscription")
+    # Use string reference for relationship to avoid circular imports
+    users = relationship("SubscriptionUser", back_populates="subscription", lazy="joined", cascade="all, delete-orphan")
+    payments = relationship("Payment", back_populates="subscription", cascade="all, delete-orphan")
 
     def __repr__(self):
-        return f"<Subscription {self.name} ({self.subscription_type})>" 
+        return f"<Subscription {self.name}>" 

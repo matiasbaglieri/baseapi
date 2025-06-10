@@ -29,13 +29,13 @@ class PasswordResetService:
             expired_tokens = self.db.query(PasswordReset).filter(
                 and_(
                     PasswordReset.expires_at <= datetime.utcnow(),
-                    PasswordReset.is_valid == True
+                    PasswordReset.is_used == False
                 )
             ).all()
             
-            # Mark tokens as invalid
+            # Mark tokens as used
             for token in expired_tokens:
-                token.is_valid = False
+                token.is_used = True
             
             self.db.commit()
             return len(expired_tokens)
@@ -72,10 +72,15 @@ class PasswordResetService:
             for token in existing_tokens:
                 token.is_used = True
 
+            # Generate a secure token
+            token = secrets.token_urlsafe(32)
+
             # Create new reset token
             reset_token = PasswordReset(
                 user_id=user.id,
-                expires_at=datetime.utcnow() + timedelta(hours=24)
+                token=token,
+                expires_at=datetime.utcnow() + timedelta(hours=24),
+                is_used=False
             )
             self.db.add(reset_token)
             self.db.commit()
@@ -114,9 +119,11 @@ class PasswordResetService:
         try:
             # Find valid password reset record
             reset_record = self.db.query(PasswordReset).filter(
-                PasswordReset.token == token,
-                PasswordReset.is_valid == True,
-                PasswordReset.expires_at > datetime.utcnow()
+                and_(
+                    PasswordReset.token == token,
+                    PasswordReset.is_used == False,
+                    PasswordReset.expires_at > datetime.utcnow()
+                )
             ).first()
             
             if not reset_record:
@@ -178,17 +185,7 @@ class PasswordResetService:
             # Send confirmation email using the dedicated task
             send_password_reset_notification.delay(
                 user.id,
-                "Password Reset Successful",
-                f"""
-                Hello {user.first_name},
-                
-                Your password has been successfully reset.
-                
-                If you did not make this change, please contact support immediately.
-                
-                Best regards,
-                Your App Team
-                """
+                "Password Reset Successful"
             )
             logger.info(f"Password reset successful for user: {user.email}")
 

@@ -35,11 +35,13 @@ class SubscriptionUserResponse(BaseModel):
     user_id: int
     subscription_id: int
     status: str
-    stripe_subscription_id: Optional[str] = None
-    stripe_customer_id: Optional[str] = None
     data_json: Optional[Dict[str, Any]] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
+    stripe_subscription_id: Optional[str] = None
+    client_secret: Optional[str] = None
 
     class Config:
         from_attributes = True

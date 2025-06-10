@@ -37,7 +37,7 @@ target_metadata = Base.metadata
 # ... etc.
 
 def get_url():
-    return f"mysql://{settings.MYSQL_USER}:{settings.MYSQL_PASSWORD}@{settings.MYSQL_HOST}:{settings.MYSQL_PORT}/{settings.MYSQL_DATABASE}"
+    return f"mysql+pymysql://{settings.MYSQL_USER}:{settings.MYSQL_PASSWORD}@{settings.MYSQL_HOST}:{settings.MYSQL_PORT}/{settings.MYSQL_DATABASE}"
 
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode.

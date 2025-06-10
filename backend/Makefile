@@ -1,4 +1,4 @@
-.PHONY: venv install start alembic alembic-revision alembic-upgrade alembic-downgrade celery celery-beat clean-install docker-up docker-down docker-build docker-console-app docker-console-mysql docker-console-redis docker-console-celery docker-console-flower
+.PHONY: venv install start alembic alembic-revision alembic-upgrade alembic-downgrade celery-worker clean-install docker-up docker-down docker-build docker-console-app docker-console-mysql docker-console-redis docker-console-celery docker-console-flower
 
 venv:
 	python3.11 -m venv env
@@ -60,3 +60,6 @@ docker-console-app:
 # Combined commands
 docker-start: docker-build docker-up
 docker-restart: docker-down docker-up
+
+celery-worker:
+	celery -A core.celery_app worker --loglevel=info 

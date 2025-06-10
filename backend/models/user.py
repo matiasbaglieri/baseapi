@@ -5,6 +5,7 @@ from core.init_db import Base
 from core.roles import UserRole
 from passlib.context import CryptContext
 from datetime import datetime
+import sqlalchemy as sa
 
 # Password hashing context
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -14,34 +15,36 @@ class User(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String(255), unique=True, index=True, nullable=False)
-    password = Column(String(255), nullable=False)
     first_name = Column(String(100), nullable=False)
     last_name = Column(String(100), nullable=False)
-    role = Column(Enum(UserRole), default=UserRole.USER, nullable=False)
+    role = Column(Enum(UserRole, values_callable=lambda x: [e.value for e in x]), default=UserRole.USER)
     is_active = Column(Boolean, default=True)
     is_blocked = Column(Boolean, default=False)
     is_verified = Column(Boolean, default=False)
     retry_count = Column(Integer, default=0)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-    last_login = Column(DateTime(timezone=True), nullable=True)
+    password = Column(String(255), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=sa.text('CURRENT_TIMESTAMP'))
+    updated_at = Column(DateTime(timezone=True), server_default=sa.text('CURRENT_TIMESTAMP'), onupdate=sa.text('CURRENT_TIMESTAMP'))
+    last_login = Column(DateTime, nullable=True)
     profile_picture = Column(String(255), nullable=True)
     phone_number = Column(String(20), nullable=True)
-    language = Column(String(3), nullable=False, default='en')
+    language = Column(String(10), default="en")
     address = Column(Text, nullable=True)
-    country_id = Column(Integer, ForeignKey('countries.id'), nullable=True)
-    city_id = Column(Integer, ForeignKey('cities.id'), nullable=True)
+    postal_code = Column(String(20), nullable=True)
+    country_id = Column(Integer, ForeignKey("countries.id"), nullable=True)
+    city_id = Column(Integer, ForeignKey("cities.id"), nullable=True)
+    subscription = Column(String(50), nullable=True)
 
-    subscription = Column(String(20), nullable=False)
     # Relationships
-    sessions = relationship("Session", back_populates="user", cascade="all, delete-orphan")
-    password_resets = relationship("PasswordReset", back_populates="user", cascade="all, delete-orphan")
-    email_verifications = relationship("EmailVerification", back_populates="user", cascade="all, delete-orphan")
+    sessions = relationship("Session", back_populates="user", cascade="all, delete-orphan", lazy="joined")
+    password_resets = relationship("PasswordReset", back_populates="user", cascade="all, delete-orphan", lazy="joined")
+    email_verifications = relationship("EmailVerification", back_populates="user", cascade="all, delete-orphan", lazy="joined")
     country = relationship("Country", back_populates="users")
     city = relationship("City", back_populates="users")
-    subscriptions = relationship("SubscriptionUser", back_populates="user")
-    payments = relationship("Payment", back_populates="user")
-    notifications = relationship("Notification", back_populates="user")
+    subscription_users = relationship("SubscriptionUser", back_populates="user", cascade="all, delete-orphan", lazy="joined")
+    subscriptions = relationship("SubscriptionUser", back_populates="user", cascade="all, delete-orphan", lazy="joined", overlaps="subscription_users")
+    payments = relationship("Payment", back_populates="user", cascade="all, delete-orphan", lazy="joined")
+    notifications = relationship("Notification", back_populates="user", cascade="all, delete-orphan", lazy="joined")
 
     def set_password(self, password: str) -> None:
         """
