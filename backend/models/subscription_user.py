@@ -13,8 +13,10 @@ class SubscriptionUser(Base):
     start_date = Column(DateTime(timezone=True), nullable=True)
     end_date = Column(DateTime(timezone=True), nullable=True)
     stripe_subscription_id = Column(String(255), nullable=True)
+    stripe_customer_id = Column(String(255), nullable=True)
     client_secret = Column(String(255), nullable=True)
     subscription_data = Column(JSON, nullable=True)
+    data_json = Column(JSON, nullable=True, default=dict)
     created_at = Column(DateTime(timezone=True), server_default="now()")
     updated_at = Column(DateTime(timezone=True), onupdate="now()")
 

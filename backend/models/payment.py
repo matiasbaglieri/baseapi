@@ -16,8 +16,12 @@ class Payment(Base):
     stripe_payment_intent_id = Column(String(255), nullable=True)
     stripe_customer_id = Column(String(255), nullable=True)
     payment_data = Column(JSON, nullable=True)
+    payment_method = Column(String(50), nullable=True)
+    payment_type = Column(String(50), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    date = Column(DateTime, nullable=True, default=datetime.utcnow)
+    data_json = Column(JSON, nullable=True)
 
     # Use string reference for relationship to avoid circular imports
     user = relationship("User", back_populates="payments", lazy="joined")
