@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Dict, Any
 
 class SubscriptionBase(BaseModel):
     name: str
@@ -27,25 +27,19 @@ class SubscriptionCreateResponse(BaseModel):
 
 class SubscriptionUserCreate(BaseModel):
     subscription_id: int
-    payment_method: str
-    amount: float
-    currency: str = "USD"
+    payment_method_id: Optional[str] = None
+    data_json: Optional[Dict[str, Any]] = None
+
+class SubscriptionUserResponse(BaseModel):
+    id: int
+    user_id: int
+    subscription_id: int
+    status: str
     stripe_subscription_id: Optional[str] = None
-    client_secret: Optional[str] = None
-    payment_type: str = "SUBSCRIPTION"
-    status: str = "active"
-    start_date: Optional[datetime] = None
-    end_date: Optional[datetime] = None
-    
+    stripe_customer_id: Optional[str] = None
+    data_json: Optional[Dict[str, Any]] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
     class Config:
         from_attributes = True
-        json_schema_extra = {
-            "example": {
-                "subscription_id": 1,
-                "payment_method": "card",
-                "amount": 25.00,
-                "currency": "USD",
-                "payment_type": "SUBSCRIPTION",
-                "status": "active"
-            }
-        }

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends, Request, status, Header
 from sqlalchemy.orm import Session
-from typing import Optional
+from typing import List, Optional
 import os
 from core.database import get_db
 from models.subscription_user import SubscriptionUser
@@ -9,12 +9,14 @@ from models.payment import Payment
 from services.user import UserService
 from services.stripe.subscription_user_service import SubscriptionUserService
 from controllers.base_controller import BaseController
-from schemas.subscription import SubscriptionUserCreate
+from schemas.subscription import SubscriptionUserCreate, SubscriptionUserResponse
 
 class SubscriptionUserController(BaseController[SubscriptionUser]):
     def __init__(self):
         super().__init__(SubscriptionUser)
-        self.router = APIRouter(tags=["subscription-users"])
+        self.router = APIRouter(
+            tags=["subscription-users"]
+        )
         self.setup_routes()
 
     def setup_routes(self):
@@ -60,6 +62,42 @@ class SubscriptionUserController(BaseController[SubscriptionUser]):
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail=f"An error occurred while creating subscription: {str(e)}"
                 )
+
+        @self.router.get("/", response_model=List[SubscriptionUserResponse])
+        async def get_all_subscriptions(
+            authorization: Optional[str] = Header(None),
+            db: Session = Depends(get_db)
+        ):
+            """
+            Get all subscriptions for the authenticated user
+            """
+            if not authorization or not authorization.startswith("Bearer "):
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid authorization header"
+                )
+            
+            try:
+                # Get current user from token
+                access_token = authorization.split(" ")[1]
+                user_service = UserService(db)
+                current_user = user_service.get_current_user(access_token)
+
+                # Get all subscriptions for user
+                subscriptions = db.query(SubscriptionUser).filter(
+                    SubscriptionUser.user_id == current_user.id
+                ).all()
+                
+                return subscriptions
+                
+            except HTTPException:
+                raise
+            except Exception as e:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"An error occurred while fetching subscriptions: {str(e)}"
+                )
+
 
 # Create router instance
 subscription_user_controller = SubscriptionUserController()
