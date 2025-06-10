@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Header
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 from core.database import get_db
 from services.stripe.subscription_service import StripeSubscriptionService
 from services.user.user_service import UserService
@@ -83,19 +83,87 @@ def create_subscription(
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-@router.post("/{stripe_subscription_id}/cancel")
+@router.post("/{subscription_user_id}/cancel")
 def cancel_subscription(
-    stripe_subscription_id: str,
+    subscription_user_id: int,
+    authorization: Optional[str] = Header(None),
+    db: Session = Depends(get_db),
     subscription_service: StripeSubscriptionService = Depends(get_subscription_service)
 ):
     """
     Cancel a subscription
     """
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authorization header"
+        )
+    
     try:
-        result = subscription_service.cancel_subscription(stripe_subscription_id)
-        return result
+        # Get current user from token
+        access_token = authorization.split(" ")[1]
+        user_service = UserService(db)
+        current_user = user_service.get_current_user(access_token)
+
+        # Get subscription user
+        subscription_user = db.query(SubscriptionUser).filter(
+            SubscriptionUser.id == subscription_user_id,
+            SubscriptionUser.user_id == current_user.id
+        ).first()
+
+        if not subscription_user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Subscription not found"
+            )
+
+        # Cancel subscription in Stripe if stripe_subscription_id exists
+        if subscription_user.stripe_subscription_id:
+            try:
+                stripe.Subscription.delete(subscription_user.stripe_subscription_id)
+            except stripe.error.StripeError as e:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Stripe error: {str(e)}"
+                )
+
+        # Update subscription user status
+        subscription_user.status = "cancelled"
+        subscription_user.updated_at = datetime.utcnow()
+
+        # Find and cancel all payments for this subscription user
+        payments = db.query(Payment).filter(
+            Payment.subscription_user_id == subscription_user.id
+        ).all()
+
+        for payment in payments:
+            payment.status = "cancelled"
+            payment.updated_at = datetime.utcnow()
+            
+            # Cancel Stripe payment intent if exists
+            if payment.stripe_payment_intent_id:
+                try:
+                    stripe.PaymentIntent.cancel(payment.stripe_payment_intent_id)
+                except stripe.error.StripeError:
+                    pass  # Ignore if payment already cancelled
+
+        db.commit()
+
+        return {
+            "status": "success",
+            "message": "Subscription and all associated payments cancelled",
+            "subscription_id": subscription_user.id,
+            "cancelled_payments": len(payments)
+        }
+
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error cancelling subscription: {str(e)}"
+        )
 
 @router.get("/success")
 def subscription_success(
