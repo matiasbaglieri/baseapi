@@ -8,7 +8,6 @@ class Subscription(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), nullable=False)
-    description = Column(Text, nullable=True)
     price = Column(Float, nullable=False)
     subscription_type = Column(String(100), nullable=False, default="month")
     currency = Column(String(3), default="USD")
