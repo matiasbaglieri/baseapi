@@ -6,7 +6,7 @@ class SubscriptionBase(BaseModel):
     name: str
     subscription_type: str
     currency: str
-    amount: float
+    price: float
 
 class SubscriptionCreate(SubscriptionBase):
     pass

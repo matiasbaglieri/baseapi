@@ -18,13 +18,13 @@ class StripeSubscriptionService:
         stripe.api_key = settings.STRIPE_API_KEY
         self.notification_service = NotificationService(db)
 
-    def create_subscription(self, name: str, subscription_type: str, currency: str, amount: float, features: dict = None) -> Subscription:
+    def create_subscription(self, name: str, subscription_type: str, currency: str, price: float, features: dict = None) -> Subscription:
         """
         Find existing subscription or create new one with Stripe product and price.
         
         Args:
             name (str): Subscription name
-            amount (float): Subscription amount
+            price (float): Subscription price
             currency (str): Currency code
             subscription_type (str): Subscription interval (month/year)
             features (dict): Subscription features
@@ -36,7 +36,7 @@ class StripeSubscriptionService:
             # Check if subscription already exists
             existing_subscription = self.db.query(Subscription).filter(
                 Subscription.name == name,
-                Subscription.amount == amount,
+                Subscription.price == price,
                 Subscription.currency == currency,
                 Subscription.subscription_type == subscription_type
             ).first()
@@ -68,33 +68,33 @@ class StripeSubscriptionService:
                 limit=1
             )
             
-            price = None
+            price_obj = None
             if prices and prices.data:
                 # Find price with matching amount
                 for p in prices.data:
-                    if p.unit_amount == int(amount * 100):
-                        price = p
+                    if p.unit_amount == int(price * 100):
+                        price_obj = p
                         break
             else:
                 # Create new Stripe price
                 price_data = {
                     "product": product.id,
-                    "unit_amount": int(amount * 100),  # Convert to cents
+                    "unit_amount": int(price * 100),  # Convert to cents
                     "currency": currency.lower(),
                     "recurring": {
                         "interval": subscription_type
                     }
                 }
-                price = stripe.Price.create(**price_data)
+                price_obj = stripe.Price.create(**price_data)
 
             # Create subscription record
             subscription = Subscription(
                 name=name,
                 subscription_type=subscription_type,
                 currency=currency,
-                amount=amount,
+                price=price,
                 stripe_product_id=product.id,
-                stripe_price_id=price.id,
+                stripe_price_id=price_obj.id,
                 features=features
             )
             
@@ -118,10 +118,57 @@ class StripeSubscriptionService:
             )
 
     def get_subscription(self, subscription_id: int) -> Optional[Subscription]:
-        return self.db.query(Subscription).filter(Subscription.id == subscription_id).first()
+        """Get subscription by ID with features"""
+        subscription = self.db.query(Subscription).filter(Subscription.id == subscription_id).first()
+        if subscription:
+            # Ensure features are loaded
+            if not subscription.features:
+                subscription.features = {}
+            return subscription
+        return None
 
-    def get_all_subscriptions(self) -> List[Subscription]:
-        return self.db.query(Subscription).all()
+    def get_all_subscriptions(self) -> List[Dict[str, Any]]:
+        """Get all subscriptions with complete details and features"""
+        subscriptions = self.db.query(Subscription).all()
+        result = []
+        
+        for subscription in subscriptions:
+            # Get features with default values
+            features = subscription.features or {}
+            
+            # Ensure all expected features are present with default values
+            default_features = {
+                "api_calls": 0,
+                "support": "None",
+                "advanced_features": False,
+                "dedicated_support": False,
+                "custom_domains": 0,
+                "team_members": 0,
+                "storage": "0GB",
+                "priority_support": False,
+                "sla": "None",
+                "custom_integrations": False
+            }
+            
+            # Merge default features with actual features
+            merged_features = {**default_features, **features}
+            
+            subscription_data = {
+                "id": subscription.id,
+                "name": subscription.name,
+                "subscription_type": subscription.subscription_type,
+                "currency": subscription.currency,
+                "price": subscription.price,
+                "features": merged_features,
+                "is_active": subscription.is_active,
+                "stripe_price_id": subscription.stripe_price_id,
+                "stripe_product_id": subscription.stripe_product_id,
+                "created_at": subscription.created_at,
+                "updated_at": subscription.updated_at
+            }
+            result.append(subscription_data)
+            
+        return result
 
     def init_subscriptions(self) -> List[Subscription]:
         """Initialize default subscriptions if they don't exist"""
@@ -134,8 +181,23 @@ class StripeSubscriptionService:
             name="FREE",
             subscription_type="month",
             currency="USD",
-            amount=0.00,
-            features={"api_calls": 1000, "support": "Community"}
+            price=0.00,
+            features={
+                "api_calls": 1000,
+                "support": "Community",
+                "advanced_features": False,
+                "dedicated_support": False,
+                "custom_domains": 0,
+                "team_members": 1,
+                "storage": "1GB",
+                "priority_support": False,
+                "sla": "None",
+                "custom_integrations": False,
+                "rate_limits": "Basic",
+                "analytics": "Basic",
+                "backup": "None",
+                "uptime": "99%"
+            }
         )
 
         # Create PRO subscription
@@ -143,8 +205,23 @@ class StripeSubscriptionService:
             name="PRO",
             subscription_type="month",
             currency="USD",
-            amount=25.00,
-            features={"api_calls": 10000, "support": "Priority", "advanced_features": True}
+            price=25.00,
+            features={
+                "api_calls": 10000,
+                "support": "Priority",
+                "advanced_features": True,
+                "dedicated_support": False,
+                "custom_domains": 2,
+                "team_members": 5,
+                "storage": "10GB",
+                "priority_support": True,
+                "sla": "Basic",
+                "custom_integrations": True,
+                "rate_limits": "Advanced",
+                "analytics": "Advanced",
+                "backup": "Daily",
+                "uptime": "99.9%"
+            }
         )
 
         # Create CORPORATE subscription
@@ -152,8 +229,23 @@ class StripeSubscriptionService:
             name="CORPORATE",
             subscription_type="month",
             currency="USD",
-            amount=100.00,
-            features={"api_calls": "Unlimited", "support": "24/7", "advanced_features": True, "dedicated_support": True}
+            price=100.00,
+            features={
+                "api_calls": "Unlimited",
+                "support": "24/7",
+                "advanced_features": True,
+                "dedicated_support": True,
+                "custom_domains": "Unlimited",
+                "team_members": "Unlimited",
+                "storage": "100GB",
+                "priority_support": True,
+                "sla": "Enterprise",
+                "custom_integrations": True,
+                "rate_limits": "Custom",
+                "analytics": "Enterprise",
+                "backup": "Real-time",
+                "uptime": "99.99%"
+            }
         )
 
         return [free_subscription, pro_subscription, corporate_subscription]
@@ -209,11 +301,6 @@ class StripeSubscriptionService:
 
             for payment in pending_payments:
                 payment.status = "cancelled"
-                if payment.stripe_payment_intent_id:
-                    try:
-                        stripe.PaymentIntent.cancel(payment.stripe_payment_intent_id)
-                    except stripe.error.StripeError:
-                        pass  # Ignore if payment already cancelled
                 payment.updated_at = datetime.utcnow()
             # Get or create Stripe customer
             customer = stripe.Customer.create(
@@ -261,7 +348,7 @@ class StripeSubscriptionService:
                 user_id=user_id,
                 subscription_id=subscription_id,
                 subscription_user_id=new_subscription.id,
-                amount=subscription.amount,
+                amount=subscription.price,
                 currency=subscription.currency,
                 payment_method="stripe",
                 payment_type="SUBSCRIPTION",
