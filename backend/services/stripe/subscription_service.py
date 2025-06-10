@@ -11,6 +11,10 @@ from fastapi import HTTPException, status
 from core.config import settings
 from services.notification.notification_service import NotificationService
 from models.user import User
+import logging
+
+# Configure logger
+logger = logging.getLogger(__name__)
 
 class StripeSubscriptionService:
     def __init__(self, db: Session):
@@ -246,18 +250,39 @@ class StripeSubscriptionService:
         """
         try:
             # Get user and subscription
+            logger.info(f"Creating subscription for user {user_id} with subscription {subscription_id}")
             user = self.db.query(User).filter(User.id == user_id).first()
             if not user:
+                logger.error(f"User {user_id} not found")
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="User not found"
                 )
+            logger.info(f"Found user: {user.email}")
 
             subscription = self.db.query(Subscription).filter(Subscription.id == subscription_id).first()
             if not subscription:
+                logger.error(f"Subscription {subscription_id} not found")
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Subscription plan not found"
+                )
+            logger.info(f"Found subscription: {subscription.name}")
+
+            # Check if subscription is active
+            if not subscription.is_active:
+                logger.warning(f"Subscription {subscription_id} is not active")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="This subscription plan is not active"
+                )
+
+            # Check if subscription has required Stripe IDs
+            if not subscription.stripe_price_id or not subscription.stripe_product_id:
+                logger.error(f"Subscription {subscription_id} missing Stripe IDs. Price ID: {subscription.stripe_price_id}, Product ID: {subscription.stripe_product_id}")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Subscription plan is not properly configured with Stripe"
                 )
 
             # Find existing active subscriptions
@@ -265,53 +290,89 @@ class StripeSubscriptionService:
                 SubscriptionUser.user_id == user_id,
                 SubscriptionUser.status == "active"
             ).all()
+            logger.info(f"Found {len(existing_subscriptions)} existing active subscriptions")
 
             # Cancel existing subscriptions
             for sub in existing_subscriptions:
+                logger.info(f"Cancelling existing subscription {sub.id}")
                 sub.status = "cancelled"
                 sub.end_date = datetime.utcnow()
                 if sub.stripe_subscription_id:
                     try:
                         stripe.Subscription.delete(sub.stripe_subscription_id)
                     except stripe.error.StripeError:
-                        pass  # Ignore if subscription already cancelled
+                        logger.warning(f"Failed to delete Stripe subscription {sub.stripe_subscription_id}")
 
             # Find and cancel pending payments
             pending_payments = self.db.query(Payment).filter(
                 Payment.user_id == user_id,
                 Payment.status == "pending"
             ).all()
+            logger.info(f"Found {len(pending_payments)} pending payments")
 
             for payment in pending_payments:
+                logger.info(f"Cancelling pending payment {payment.id}")
                 payment.status = "cancelled"
                 payment.updated_at = datetime.utcnow()
+
             # Get or create Stripe customer
-            customer = stripe.Customer.create(
-                email=user.email,
-                name=f"{user.first_name} {user.last_name}",
-                metadata={
-                    "user_id": user.id
-                }
-            )
+            try:
+                logger.info(f"Looking for existing Stripe customer with email {user.email}")
+                # First try to find existing customer
+                customers = stripe.Customer.list(
+                    email=user.email,
+                    limit=1
+                )
+                
+                if customers and customers.data:
+                    customer = customers.data[0]
+                    logger.info(f"Found existing Stripe customer: {customer.id}")
+                else:
+                    logger.info("No existing customer found, creating new one")
+                    # Create new customer if not found
+                    customer = stripe.Customer.create(
+                        email=user.email,
+                        name=f"{user.first_name} {user.last_name}",
+                        metadata={
+                            "user_id": user.id
+                        }
+                    )
+                    logger.info(f"Created new Stripe customer: {customer.id}")
+            except stripe.error.StripeError as e:
+                logger.error(f"Error with Stripe customer: {str(e)}")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Error creating/finding Stripe customer: {str(e)}"
+                )
 
             # Create Stripe checkout session
-            session = stripe.checkout.Session.create(
-                customer=customer.id,
-                payment_method_types=['card'],
-                line_items=[{
-                    'price': subscription.stripe_price_id,
-                    'quantity': 1,
-                }],
-                mode='subscription',
-                success_url=f"{settings.FRONTEND_URL}/subscription/success?session_id={session.id}",
-                cancel_url=f"{settings.FRONTEND_URL}/subscription/cancel?session_id={session.id}",
-                metadata={
-                    "user_id": user.id,
-                    "subscription_id": subscription.id
-                }
-            )
+            try:
+                logger.info(f"Creating checkout session for customer {customer.id} with price {subscription.stripe_price_id}")
+                session = stripe.checkout.Session.create(
+                    customer=customer.id,
+                    payment_method_types=['card'],
+                    line_items=[{
+                        'price': subscription.stripe_price_id,
+                        'quantity': 1,
+                    }],
+                    mode='subscription',
+                    success_url=f"{settings.FRONTEND_URL}/subscription/success",
+                    cancel_url=f"{settings.FRONTEND_URL}/subscription/cancel",
+                    metadata={
+                        "user_id": user.id,
+                        "subscription_id": subscription.id
+                    }
+                )
+                logger.info(f"Created checkout session: {session.id}")
+            except stripe.error.StripeError as e:
+                logger.error(f"Error creating checkout session: {str(e)}")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Error creating checkout session: {str(e)}"
+                )
 
             # Create new subscription user record
+            logger.info("Creating subscription user record")
             new_subscription = SubscriptionUser(
                 user_id=user_id,
                 subscription_id=subscription_id,
@@ -325,8 +386,10 @@ class StripeSubscriptionService:
             
             self.db.add(new_subscription)
             self.db.flush()  # Get the ID without committing
+            logger.info(f"Created subscription user record: {new_subscription.id}")
 
             # Create payment record
+            logger.info("Creating payment record")
             payment = Payment(
                 user_id=user_id,
                 subscription_id=subscription_id,
@@ -347,6 +410,7 @@ class StripeSubscriptionService:
             self.db.add(payment)
             self.db.commit()
             self.db.refresh(new_subscription)
+            logger.info(f"Created payment record: {payment.id}")
 
             return {
                 "checkout_url": session.url,
@@ -355,13 +419,19 @@ class StripeSubscriptionService:
                 "payment_id": payment.id
             }
 
+        except HTTPException:
+            logger.error("HTTP Exception occurred")
+            self.db.rollback()
+            raise
         except stripe.error.StripeError as e:
+            logger.error(f"Stripe error occurred: {str(e)}")
             self.db.rollback()
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Stripe error: {str(e)}"
             )
         except Exception as e:
+            logger.error(f"Unexpected error occurred: {str(e)}")
             self.db.rollback()
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -400,7 +470,7 @@ class StripeSubscriptionService:
                 self.cancel_stripe_subscription(subscription_user.stripe_subscription_id)
             except ValueError as e:
                 # Log the error but continue with local cancellation
-                print(f"Error canceling Stripe subscription: {str(e)}")
+                logger.warning(f"Error canceling Stripe subscription: {str(e)}")
 
         # Update subscription user status
         subscription_user.status = "cancelled"
