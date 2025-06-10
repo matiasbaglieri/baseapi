@@ -174,7 +174,7 @@ class PaymentService:
             )
 
             return {
-                "payment": payment,
+                "payment": self._convert_payment_to_dict(payment),
                 "client_secret": payment_intent.client_secret
             }
 
@@ -184,3 +184,43 @@ class PaymentService:
         except Exception as e:
             self.db.rollback()
             raise ValueError(f"Error creating payment: {str(e)}")
+
+    def find_or_create_payment_transaction(
+        self,
+        user_id: int,
+        amount: float,
+        currency: str,
+        description: str = None
+    ) -> Dict[str, Any]:
+        """
+        Find existing payment transaction or create new one
+        """
+        try:
+            # Find existing pending payment
+            existing_payment = self.db.query(Payment).filter(
+                Payment.user_id == user_id,
+                Payment.amount == amount,
+                Payment.currency == currency,
+                Payment.payment_type == "TX",
+                Payment.status == "pending"
+            ).first()
+
+            if existing_payment:
+                logger.info(f"Found existing payment transaction: {existing_payment.id}")
+                return {
+                    "payment": self._convert_payment_to_dict(existing_payment),
+                    "client_secret": existing_payment.data_json.get("client_secret")
+                }
+
+            # Create new payment if none exists
+            logger.info("No existing payment found, creating new transaction")
+            return self.create_payment_transaction(
+                user_id=user_id,
+                amount=amount,
+                currency=currency,
+                description=description
+            )
+
+        except Exception as e:
+            logger.error(f"Error in find_or_create_payment_transaction: {str(e)}")
+            raise ValueError(f"Error processing payment: {str(e)}")

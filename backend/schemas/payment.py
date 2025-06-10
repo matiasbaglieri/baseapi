@@ -5,7 +5,6 @@ from typing import Optional, Dict, Any
 class PaymentTransactionCreate(BaseModel):
     amount: float
     currency: str
-    stripe_customer_id: str
     description: Optional[str] = None
 
 class PaymentResponse(BaseModel):

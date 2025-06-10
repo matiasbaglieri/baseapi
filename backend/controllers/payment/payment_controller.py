@@ -86,7 +86,7 @@ class PaymentController(BaseController[Payment]):
                 payment_service = PaymentService(db)
                 
                 # Create payment transaction
-                result = payment_service.create_payment_transaction(
+                result = payment_service.find_or_create_payment_transaction(
                     user_id=current_user.id,
                     amount=payment_data.amount,
                     currency=payment_data.currency,
