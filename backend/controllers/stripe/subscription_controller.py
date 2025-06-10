@@ -1,11 +1,16 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status, Header
 from sqlalchemy.orm import Session
 from typing import List
 from core.database import get_db
 from services.stripe.subscription_service import StripeSubscriptionService
+from services.user.user_service import UserService
 from models.subscription import Subscription
+from models.subscription_user import SubscriptionUser
+from models.payment import Payment
 from schemas.subscription import SubscriptionCreate, SubscriptionResponse
 from core.config import settings
+import stripe
+from datetime import datetime
 
 router = APIRouter(
     tags=["subscriptions"]
@@ -49,16 +54,28 @@ def get_subscription(
 @router.post("/{subscription_id}/subscribe")
 def create_subscription(
     subscription_id: int,
-    stripe_customer_id: str,
+    authorization: str = Header(...),
+    db: Session = Depends(get_db),
     subscription_service: StripeSubscriptionService = Depends(get_subscription_service)
 ):
     """
     Create a subscription for a customer
     """
     try:
+        if not authorization or not authorization.startswith("Bearer "):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid authorization header"
+            )
+        
+        access_token = authorization.split(" ")[1]
+        user_service = UserService(db)
+        
+        # First get the current user to ensure authentication
+        current_user = user_service.get_current_user(access_token)
         result = subscription_service.create_customer_subscription(
-            subscription_id=subscription_id,
-            stripe_customer_id=stripe_customer_id
+            user_id=current_user.id,
+            subscription_id=subscription_id
         )
         return result
     except ValueError as e:
@@ -78,4 +95,124 @@ def cancel_subscription(
         result = subscription_service.cancel_subscription(stripe_subscription_id)
         return result
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e)) 
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.get("/success")
+def subscription_success(
+    session_id: str,
+    db: Session = Depends(get_db),
+    subscription_service: StripeSubscriptionService = Depends(get_subscription_service)
+):
+    """
+    Handle successful subscription payment
+    """
+    try:
+        # Retrieve the checkout session
+        session = stripe.checkout.Session.retrieve(session_id)
+        
+        # Get subscription user from database
+        subscription_user = db.query(SubscriptionUser).filter(
+            SubscriptionUser.data_json['checkout_session_id'].astext == session_id
+        ).first()
+        
+        if not subscription_user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Subscription not found"
+            )
+
+        # Update subscription user status
+        subscription_user.status = "active"
+        subscription_user.stripe_subscription_id = session.subscription
+        subscription_user.updated_at = datetime.utcnow()
+
+        # Update payment status
+        payment = db.query(Payment).filter(
+            Payment.subscription_user_id == subscription_user.id,
+            Payment.status == "pending"
+        ).first()
+
+        if payment:
+            payment.status = "completed"
+            payment.updated_at = datetime.utcnow()
+            payment.data_json = {
+                **payment.data_json,
+                "subscription_id": session.subscription,
+                "payment_intent": session.payment_intent
+            }
+
+        db.commit()
+
+        return {
+            "status": "success",
+            "message": "Subscription activated successfully",
+            "subscription_id": subscription_user.id
+        }
+
+    except stripe.error.StripeError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Stripe error: {str(e)}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error processing subscription: {str(e)}"
+        )
+
+@router.get("/cancel")
+def subscription_cancel(
+    session_id: str,
+    db: Session = Depends(get_db),
+    subscription_service: StripeSubscriptionService = Depends(get_subscription_service)
+):
+    """
+    Handle cancelled subscription payment
+    """
+    try:
+        # Get subscription user from database
+        subscription_user = db.query(SubscriptionUser).filter(
+            SubscriptionUser.data_json['checkout_session_id'].astext == session_id
+        ).first()
+        
+        if not subscription_user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Subscription not found"
+            )
+
+        # Update subscription user status
+        subscription_user.status = "cancelled"
+        subscription_user.updated_at = datetime.utcnow()
+
+        # Find and cancel all payments for this subscription user
+        payments = db.query(Payment).filter(
+            Payment.subscription_user_id == subscription_user.id
+        ).all()
+
+        for payment in payments:
+            payment.status = "cancelled"
+            payment.updated_at = datetime.utcnow()
+            
+            # Cancel Stripe payment intent if exists
+            if payment.stripe_payment_intent_id:
+                try:
+                    stripe.PaymentIntent.cancel(payment.stripe_payment_intent_id)
+                except stripe.error.StripeError:
+                    pass  # Ignore if payment already cancelled
+
+        db.commit()
+
+        return {
+            "status": "cancelled",
+            "message": "Subscription and all associated payments cancelled",
+            "subscription_id": subscription_user.id,
+            "cancelled_payments": len(payments)
+        }
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error cancelling subscription: {str(e)}"
+        ) 

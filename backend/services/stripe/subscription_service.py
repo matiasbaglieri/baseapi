@@ -10,6 +10,7 @@ from datetime import datetime
 from fastapi import HTTPException, status
 from core.config import settings
 from services.notification.notification_service import NotificationService
+from models.user import User
 
 class StripeSubscriptionService:
     def __init__(self, db: Session):
@@ -19,26 +20,71 @@ class StripeSubscriptionService:
 
     def create_subscription(self, name: str, subscription_type: str, currency: str, amount: float) -> Subscription:
         """
-        Create a new subscription plan
+        Find existing subscription or create new one with Stripe product and price.
+        
+        Args:
+            name (str): Subscription name
+            amount (float): Subscription amount
+            currency (str): Currency code
+            subscription_type (str): Subscription interval (month/year)
+            
+        Returns:
+            Subscription: Created or found subscription
         """
         try:
-            # Create Stripe product
-            product = stripe.Product.create(
-                name=name,
-                description=f"{name} subscription plan"
+            # Check if subscription already exists
+            existing_subscription = self.db.query(Subscription).filter(
+                Subscription.name == name,
+                Subscription.amount == amount,
+                Subscription.currency == currency,
+                Subscription.subscription_type == subscription_type
+            ).first()
+
+            if existing_subscription:
+                return existing_subscription
+
+            # Search for existing Stripe product
+            products = stripe.Product.search(
+                query=f"name:'{name}'",
+                limit=1
             )
+            
+            product = None
+            if products and products.data:
+                product = products.data[0]
+            else:
+                # Create new Stripe product
+                product = stripe.Product.create(
+                    name=name,
+                    description=f"{name} subscription plan"
+                )
 
-            # Create Stripe price
-            price_data = {
-                "product": product.id,
-                "unit_amount": int(amount * 100),  # Convert to cents
-                "currency": currency.lower(),
-                "recurring": {
-                    "interval": subscription_type
+            # Search for existing price
+            prices = stripe.Price.list(
+                product=product.id,
+                active=True,
+                currency=currency.lower(),
+                limit=1
+            )
+            
+            price = None
+            if prices and prices.data:
+                # Find price with matching amount
+                for p in prices.data:
+                    if p.unit_amount == int(amount * 100):
+                        price = p
+                        break
+            else:
+                # Create new Stripe price
+                price_data = {
+                    "product": product.id,
+                    "unit_amount": int(amount * 100),  # Convert to cents
+                    "currency": currency.lower(),
+                    "recurring": {
+                        "interval": subscription_type
+                    }
                 }
-            }
-
-            stripe_price = stripe.Price.create(**price_data)
+                price = stripe.Price.create(**price_data)
 
             # Create subscription record
             subscription = Subscription(
@@ -47,7 +93,7 @@ class StripeSubscriptionService:
                 currency=currency,
                 amount=amount,
                 stripe_product_id=product.id,
-                stripe_price_id=stripe_price.id
+                stripe_price_id=price.id
             )
             
             self.db.add(subscription)
@@ -58,10 +104,16 @@ class StripeSubscriptionService:
 
         except stripe.error.StripeError as e:
             self.db.rollback()
-            raise ValueError(f"Stripe error: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Stripe error: {str(e)}"
+            )
         except Exception as e:
             self.db.rollback()
-            raise ValueError(f"Error creating subscription: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error creating subscription: {str(e)}"
+            )
 
     def get_subscription(self, subscription_id: int) -> Optional[Subscription]:
         return self.db.query(Subscription).filter(Subscription.id == subscription_id).first()
@@ -101,99 +153,145 @@ class StripeSubscriptionService:
 
         return [free_subscription, pro_subscription, corporate_subscription]
 
-    def create_customer_subscription(self, user_id: int, subscription_id: int, stripe_customer_id: str) -> dict:
-        """Create a subscription for a customer in Stripe"""
-        subscription = self.get_subscription(subscription_id)
-        if not subscription:
-            raise ValueError("Subscription not found")
+    def create_customer_subscription(self, user_id: int, subscription_id: int) -> dict:
+        """
+        Create a subscription for a customer.
+        
+        Args:
+            user_id (int): ID of the user
+            subscription_id (int): ID of the subscription plan
+            
+        Returns:
+            dict: Subscription details with checkout URL
+        """
+        try:
+            # Get user and subscription
+            user = self.db.query(User).filter(User.id == user_id).first()
+            if not user:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="User not found"
+                )
 
-        # Get existing active subscriptions for the user
-        existing_active_subscriptions = self.db.query(SubscriptionUser).filter(
-            SubscriptionUser.user_id == user_id,
-            SubscriptionUser.status == "active"
-        ).all()
+            subscription = self.db.query(Subscription).filter(Subscription.id == subscription_id).first()
+            if not subscription:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Subscription plan not found"
+                )
 
-        # Cancel existing subscriptions
-        for existing_sub in existing_active_subscriptions:
-            self.cancel_subscription(existing_sub.id)
+            # Find existing active subscriptions
+            existing_subscriptions = self.db.query(SubscriptionUser).filter(
+                SubscriptionUser.user_id == user_id,
+                SubscriptionUser.status == "active"
+            ).all()
 
-        # Create Stripe subscription
-        stripe_subscription = stripe.Subscription.create(
-            customer=stripe_customer_id,
-            items=[{"price": subscription.stripe_price_id}],
-            payment_behavior='default_incomplete',
-            expand=['latest_invoice.payment_intent']
-        )
+            # Cancel existing subscriptions
+            for sub in existing_subscriptions:
+                sub.status = "cancelled"
+                sub.end_date = datetime.utcnow()
+                if sub.stripe_subscription_id:
+                    try:
+                        stripe.Subscription.delete(sub.stripe_subscription_id)
+                    except stripe.error.StripeError:
+                        pass  # Ignore if subscription already cancelled
 
-        # Check for existing subscription user
-        existing_subscription = self.db.query(SubscriptionUser).filter(
-            SubscriptionUser.user_id == user_id,
-            SubscriptionUser.subscription_id == subscription_id,
-            SubscriptionUser.status == "active"
-        ).first()
+            # Find and cancel pending payments
+            pending_payments = self.db.query(Payment).filter(
+                Payment.user_id == user_id,
+                Payment.status == "pending"
+            ).all()
 
-        if existing_subscription:
-            # Update existing subscription
-            existing_subscription.stripe_subscription_id = stripe_subscription.id
-            existing_subscription.client_secret = stripe_subscription.latest_invoice.payment_intent.client_secret
-            subscription_user = existing_subscription
-        else:
+            for payment in pending_payments:
+                payment.status = "cancelled"
+                if payment.stripe_payment_intent_id:
+                    try:
+                        stripe.PaymentIntent.cancel(payment.stripe_payment_intent_id)
+                    except stripe.error.StripeError:
+                        pass  # Ignore if payment already cancelled
+
+            # Get or create Stripe customer
+            customer = stripe.Customer.create(
+                email=user.email,
+                name=f"{user.first_name} {user.last_name}",
+                metadata={
+                    "user_id": user.id
+                }
+            )
+
+            # Create Stripe checkout session
+            session = stripe.checkout.Session.create(
+                customer=customer.id,
+                payment_method_types=['card'],
+                line_items=[{
+                    'price': subscription.stripe_price_id,
+                    'quantity': 1,
+                }],
+                mode='subscription',
+                success_url=f"{settings.FRONTEND_URL}/subscription/success?session_id={{CHECKOUT_SESSION_ID}}",
+                cancel_url=f"{settings.FRONTEND_URL}/subscription/cancel",
+                metadata={
+                    "user_id": user.id,
+                    "subscription_id": subscription.id
+                }
+            )
+
             # Create new subscription user record
-            subscription_user = SubscriptionUser(
+            new_subscription = SubscriptionUser(
                 user_id=user_id,
                 subscription_id=subscription_id,
-                status="active",
+                status="pending",
                 start_date=datetime.utcnow(),
-                stripe_subscription_id=stripe_subscription.id,
-                client_secret=stripe_subscription.latest_invoice.payment_intent.client_secret
+                stripe_customer_id=customer.id,
+                data_json={
+                    "checkout_session_id": session.id
+                }
             )
-            self.db.add(subscription_user)
+            
+            self.db.add(new_subscription)
+            self.db.flush()  # Get the ID without committing
 
-        self.db.flush()  # Get subscription_user ID without committing
+            # Create payment record
+            payment = Payment(
+                user_id=user_id,
+                subscription_id=subscription_id,
+                subscription_user_id=new_subscription.id,
+                amount=subscription.amount,
+                currency=subscription.currency,
+                payment_method="stripe",
+                payment_type="SUBSCRIPTION",
+                date=datetime.utcnow(),
+                status="pending",
+                stripe_payment_intent_id=session.payment_intent,
+                data_json={
+                    "checkout_session_id": session.id,
+                    "customer_id": customer.id
+                }
+            )
+            
+            self.db.add(payment)
+            self.db.commit()
+            self.db.refresh(new_subscription)
 
-        # Create payment record
-        payment = Payment(
-            user_id=user_id,
-            subscription_id=subscription_id,
-            subscription_user_id=subscription_user.id,
-            amount=subscription.amount,
-            currency=subscription.currency,
-            payment_method="stripe",
-            payment_type="SUBSCRIPTION",
-            date=datetime.utcnow(),
-            status="pending",  # Will be updated after Stripe confirmation
-            stripe_payment_intent_id=stripe_subscription.latest_invoice.payment_intent.id,
-            data_json={
-                "client_secret": stripe_subscription.latest_invoice.payment_intent.client_secret,
-                "subscription_id": stripe_subscription.id,
+            return {
+                "checkout_url": session.url,
+                "session_id": session.id,
+                "subscription_user_id": new_subscription.id,
+                "payment_id": payment.id
             }
-        )
-        self.db.add(payment)
-        
-        # Commit all changes
-        self.db.commit()
-        self.db.refresh(subscription_user)
-        self.db.refresh(payment)
 
-        # Create notification for subscription creation
-        self.notification_service.create_notification(
-            user_id=subscription_user.user_id,
-            title="payment.subscription.created",
-            action="PAYMENT",
-            data_json={
-                "subscription_id": subscription_user.subscription_id,
-                "subscription_user_id": subscription_user.id,
-                "stripe_subscription_id": subscription_user.stripe_subscription_id,
-                "status": subscription_user.status,
-                "updated_at": subscription_user.updated_at.isoformat()
-            }
-        )
-
-        return {
-            "subscription_id": stripe_subscription.id,
-            "client_secret": stripe_subscription.latest_invoice.payment_intent.client_secret,
-            "subscription_user_id": subscription_user.id
-        }
+        except stripe.error.StripeError as e:
+            self.db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Stripe error: {str(e)}"
+            )
+        except Exception as e:
+            self.db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error creating subscription: {str(e)}"
+            )
 
     def cancel_stripe_subscription(self, stripe_subscription_id: str) -> dict:
         """Cancel a Stripe subscription"""
@@ -343,3 +441,5 @@ class StripeSubscriptionService:
         Get subscription user by ID
         """
         return self.db.query(SubscriptionUser).filter(SubscriptionUser.id == subscription_user_id).first()
+
+   
