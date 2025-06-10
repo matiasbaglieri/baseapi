@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends, Query, status, Header
 from sqlalchemy.orm import Session
-from typing import Optional
+from typing import Optional, Dict, Any
 from core.database import get_db
 from models.payment import Payment
 from services.payment.payment_service import PaymentService
@@ -16,7 +16,7 @@ class PaymentController(BaseController[Payment]):
         self.setup_routes()
 
     def setup_routes(self):
-        @self.router.get("/user", response_model=dict)
+        @self.router.get("/user", response_model=Dict[str, Any])
         async def get_user_payments(
             page: int = Query(1, ge=1, description="Page number"),
             per_page: int = Query(10, ge=1, le=100, description="Items per page"),
@@ -90,7 +90,6 @@ class PaymentController(BaseController[Payment]):
                     user_id=current_user.id,
                     amount=payment_data.amount,
                     currency=payment_data.currency,
-                    stripe_customer_id=payment_data.stripe_customer_id,
                     description=payment_data.description
                 )
                 
