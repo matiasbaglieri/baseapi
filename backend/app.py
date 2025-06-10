@@ -10,6 +10,7 @@ from controllers.stripe import subscription_router, subscription_user_router
 from controllers.notification.notification_controller import router as notification_router
 from controllers.user.authorization_controller import router as authorization_router
 from controllers.admin.admin_controller import router as admin_router
+from controllers.admin.dashboard_admin_controller import router as dashboard_router
 from core.init_db import init_db, get_db, drop_db
 from core.utils import parse_json_env_var
 from core.celery_app import celery_app, init_celery, shutdown_celery
@@ -83,6 +84,7 @@ app.include_router(subscription_user_router, prefix="/subscription-users", tags=
 app.include_router(notification_router, prefix="/notifications", tags=["notifications"])
 app.include_router(authorization_router, prefix="/authz", tags=["authorization"])
 app.include_router(admin_router, prefix="/admin", tags=["admin"])
+app.include_router(dashboard_router, prefix="/admin/dashboard", tags=["admin-dashboard"])
 
 if __name__ == "__main__":
     # Server Configuration

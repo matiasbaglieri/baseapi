@@ -9,7 +9,7 @@ class SubscriptionUser(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     subscription_id = Column(Integer, ForeignKey("subscriptions.id"), nullable=False)
-    status = Column(String(50), nullable=False, default="pending")
+    status = Column(String(50), nullable=False, default="pending") # pending cancelled,active
     start_date = Column(DateTime(timezone=True), nullable=True)
     end_date = Column(DateTime(timezone=True), nullable=True)
     stripe_subscription_id = Column(String(255), nullable=True)
