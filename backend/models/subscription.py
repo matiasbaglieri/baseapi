@@ -10,6 +10,7 @@ class Subscription(Base):
     name = Column(String(100), nullable=False)
     description = Column(Text, nullable=True)
     price = Column(Float, nullable=False)
+    subscription_type = Column(String(100), nullable=False, default="month")
     currency = Column(String(3), default="USD")
     duration = Column(Integer, nullable=False)  # Duration in days
     features = Column(JSON, nullable=True)

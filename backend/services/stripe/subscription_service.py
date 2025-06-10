@@ -18,7 +18,7 @@ class StripeSubscriptionService:
         stripe.api_key = settings.STRIPE_API_KEY
         self.notification_service = NotificationService(db)
 
-    def create_subscription(self, name: str, subscription_type: str, currency: str, amount: float) -> Subscription:
+    def create_subscription(self, name: str, subscription_type: str, currency: str, amount: float, features: dict = None) -> Subscription:
         """
         Find existing subscription or create new one with Stripe product and price.
         
@@ -27,6 +27,7 @@ class StripeSubscriptionService:
             amount (float): Subscription amount
             currency (str): Currency code
             subscription_type (str): Subscription interval (month/year)
+            features (dict): Subscription features
             
         Returns:
             Subscription: Created or found subscription
@@ -93,7 +94,8 @@ class StripeSubscriptionService:
                 currency=currency,
                 amount=amount,
                 stripe_product_id=product.id,
-                stripe_price_id=price.id
+                stripe_price_id=price.id,
+                features=features
             )
             
             self.db.add(subscription)
@@ -132,7 +134,8 @@ class StripeSubscriptionService:
             name="FREE",
             subscription_type="month",
             currency="USD",
-            amount=0.00
+            amount=0.00,
+            features={"api_calls": 1000, "support": "Community"}
         )
 
         # Create PRO subscription
@@ -140,7 +143,8 @@ class StripeSubscriptionService:
             name="PRO",
             subscription_type="month",
             currency="USD",
-            amount=25.00
+            amount=25.00,
+            features={"api_calls": 10000, "support": "Priority", "advanced_features": True}
         )
 
         # Create CORPORATE subscription
@@ -148,7 +152,8 @@ class StripeSubscriptionService:
             name="CORPORATE",
             subscription_type="month",
             currency="USD",
-            amount=100.00
+            amount=100.00,
+            features={"api_calls": "Unlimited", "support": "24/7", "advanced_features": True, "dedicated_support": True}
         )
 
         return [free_subscription, pro_subscription, corporate_subscription]
@@ -209,7 +214,7 @@ class StripeSubscriptionService:
                         stripe.PaymentIntent.cancel(payment.stripe_payment_intent_id)
                     except stripe.error.StripeError:
                         pass  # Ignore if payment already cancelled
-
+                payment.updated_at = datetime.utcnow()
             # Get or create Stripe customer
             customer = stripe.Customer.create(
                 email=user.email,
