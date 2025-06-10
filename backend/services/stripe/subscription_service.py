@@ -228,8 +228,8 @@ class StripeSubscriptionService:
                     'quantity': 1,
                 }],
                 mode='subscription',
-                success_url=f"{settings.FRONTEND_URL}/subscription/success?session_id={{CHECKOUT_SESSION_ID}}",
-                cancel_url=f"{settings.FRONTEND_URL}/subscription/cancel",
+                success_url=f"{settings.FRONTEND_URL}/subscription/success?session_id={session.id}",
+                cancel_url=f"{settings.FRONTEND_URL}/subscription/cancel?session_id={session.id}",
                 metadata={
                     "user_id": user.id,
                     "subscription_id": subscription.id
