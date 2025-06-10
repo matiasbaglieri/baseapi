@@ -7,12 +7,26 @@ class NotificationService:
     def __init__(self, db: Session):
         self.db = db
 
+    def _convert_notification_to_dict(self, notification: Notification) -> Dict[str, Any]:
+        """Convert notification to dictionary with required fields"""
+        return {
+            "id": notification.id,
+            "user_id": notification.user_id,
+            "title": notification.title,
+            "message": notification.data_json.get("message", notification.title),  # Use title as fallback
+            "is_read": notification.is_read,
+            "action": notification.action,
+            "data_json": notification.data_json,
+            "created_at": notification.created_at,
+            "updated_at": notification.updated_at
+        }
+
     def get_user_notifications(
         self,
         user_id: int,
         skip: int = 0,
         limit: int = 10
-    ) -> List[Notification]:
+    ) -> List[Dict[str, Any]]:
         """
         Get paginated list of user's notifications and mark unread ones as read
         """
@@ -34,7 +48,8 @@ class NotificationService:
             )
             self.db.commit()
 
-        return notifications
+        # Convert notifications to dictionaries with required fields
+        return [self._convert_notification_to_dict(n) for n in notifications]
 
     def create_notification(
         self,
