@@ -7,6 +7,65 @@
 	},
 	"item": [
 		{
+			"name": "init",
+			"item": [
+				{
+					"name": "init_subscriptions",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{host}}/subscriptions/init",
+							"host": [
+								"{{host}}"
+							],
+							"path": [
+								"subscriptions",
+								"init"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "init_countries",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{host}}/countries/init_countries",
+							"host": [
+								"{{host}}"
+							],
+							"path": [
+								"countries",
+								"init_countries"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "init_cities",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{host}}/cities/init_cities",
+							"host": [
+								"{{host}}"
+							],
+							"path": [
+								"cities",
+								"init_cities"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
 			"name": "user",
 			"item": [
 				{
@@ -16,7 +75,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"stringasdasd\"\n}",
+							"raw": "{\n  \"email\": \"user1@example.com\",\n  \"password\": \"stringasdasd\"\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -85,7 +144,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n\n    \"first_name\": \"Matias\",\n    \"last_name\": \"Baglieri\",\n    \"phone_number\":\"+5491164616122\",\n    \"address\":\"alvaerz thomas 3547\"\n}",
+							"raw": "{\n\n    \"first_name\": \"Matias\",\n    \"last_name\": \"Baglieri\",\n    \"phone_number\":\"+5491164616122\",\n    \"address\":\"alvaerz thomas 3547\",\n    \"country_id\": 235,\n    \"city_id\": 134404,\n    \"language\":\"en\"\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -100,6 +159,39 @@
 							"path": [
 								"users",
 								"me"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "change-password",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{hands_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"current_password\": \"stringasdasd\",\n    \"new_password\": \"stringasdasd\",\n    \"confirm_password\": \"stringasdasd\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{host}}/users/change-password",
+							"host": [
+								"{{host}}"
+							],
+							"path": [
+								"users",
+								"change-password"
 							]
 						}
 					},
@@ -139,7 +231,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"email\": \"user1@example.com\",\n  \"password\": \"stringasdasd\",\n  \"first_name\": \"matias\",\n  \"last_name\": \"baglieri\"\n}",
+							"raw": "{\n    \"email\": \"2@example.com\",\n    \"password\": \"stringasdasd\",\n    \"first_name\": \"matias\",\n    \"last_name\": \"baglieri\",\n    \"country_id\": 235,\n    \"city_id\": 134404,\n    \"language\": \"en\"\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -166,7 +258,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"email\": \"user@example.com\"\n}",
+							"raw": "{\n  \"email\": \"user1@example.com\"\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -174,12 +266,12 @@
 							}
 						},
 						"url": {
-							"raw": "{{host}}/user/forgot-password",
+							"raw": "{{host}}/users/forgot-password",
 							"host": [
 								"{{host}}"
 							],
 							"path": [
-								"user",
+								"users",
 								"forgot-password"
 							]
 						}
@@ -193,7 +285,7 @@
 						"header": [],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"token\": \"arYrvcMIv6lCV7NfwJD_llKglH7of8xS1tMBc8laCqw\",\n  \"new_password\": \"string\"\n}",
+							"raw": "{\n  \"token\": \"NeJdnPoMPxun-wf9l5dd_DNWSeN-avamY29wJ6F520I\",\n  \"new_password\": \"stringasdasd\"\n}",
 							"options": {
 								"raw": {
 									"language": "json"
@@ -201,46 +293,13 @@
 							}
 						},
 						"url": {
-							"raw": "{{host}}/user/reset-password",
-							"host": [
-								"{{host}}"
-							],
-							"path": [
-								"user",
-								"reset-password"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "change-password",
-					"request": {
-						"method": "PUT",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{hands_token}}",
-								"type": "text"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"current_password\": \"stringasdasd\",\n    \"new_password\": \"stringasdasd\",\n    \"confirm_password\": \"stringasdasd\"\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "{{host}}/users/change-password",
+							"raw": "{{host}}/users/reset-password",
 							"host": [
 								"{{host}}"
 							],
 							"path": [
 								"users",
-								"change-password"
+								"reset-password"
 							]
 						}
 					},
@@ -312,6 +371,428 @@
 							"path": [
 								"email",
 								"verify"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "subscriptions",
+			"item": [
+				{
+					"name": "subscriptions",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{hands_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{host}}/subscriptions/",
+							"host": [
+								"{{host}}"
+							],
+							"path": [
+								"subscriptions",
+								""
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "subscription_user",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{hands_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{host}}/subscription-users/",
+							"host": [
+								"{{host}}"
+							],
+							"path": [
+								"subscription-users",
+								""
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "subscription id",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{hands_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{host}}/subscriptions/1",
+							"host": [
+								"{{host}}"
+							],
+							"path": [
+								"subscriptions",
+								"1"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "subscribe",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{hands_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{host}}/subscriptions/1/subscribe",
+							"host": [
+								"{{host}}"
+							],
+							"path": [
+								"subscriptions",
+								"1",
+								"subscribe"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "notifications",
+			"item": [
+				{
+					"name": "get notifications",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{hands_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{host}}/notifications/",
+							"host": [
+								"{{host}}"
+							],
+							"path": [
+								"notifications",
+								""
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "geo",
+			"item": [
+				{
+					"name": "countries_search",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{host}}/countries/search?name=united&limit=10&offset=0",
+							"host": [
+								"{{host}}"
+							],
+							"path": [
+								"countries",
+								"search"
+							],
+							"query": [
+								{
+									"key": "name",
+									"value": "united"
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								},
+								{
+									"key": "offset",
+									"value": "0"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "cities_search",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{hands_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{host}}/cities/search?name=&country_id=235&limit=10&offset=0",
+							"host": [
+								"{{host}}"
+							],
+							"path": [
+								"cities",
+								"search"
+							],
+							"query": [
+								{
+									"key": "name",
+									"value": ""
+								},
+								{
+									"key": "country_id",
+									"value": "235"
+								},
+								{
+									"key": "limit",
+									"value": "10"
+								},
+								{
+									"key": "offset",
+									"value": "0"
+								},
+								{
+									"key": "state_name",
+									"value": "Autonomous City of Buenos Aires",
+									"disabled": true
+								},
+								{
+									"key": "state_id",
+									"value": "1452",
+									"disabled": true
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "states search",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{hands_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{host}}/cities/states/235",
+							"host": [
+								"{{host}}"
+							],
+							"path": [
+								"cities",
+								"states",
+								"235"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "payments",
+			"item": [
+				{
+					"name": "payments",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{hands_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{host}}/payments/user?page=1&per_page=10",
+							"host": [
+								"{{host}}"
+							],
+							"path": [
+								"payments",
+								"user"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "1"
+								},
+								{
+									"key": "per_page",
+									"value": "10"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "tx",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{hands_token}}",
+								"type": "text"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"amount\": 100.00,\n    \"currency\": \"USD\",\n    \"description\": \"Payment for services\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{host}}/payments/transaction",
+							"host": [
+								"{{host}}"
+							],
+							"path": [
+								"payments",
+								"transaction"
 							]
 						}
 					},
