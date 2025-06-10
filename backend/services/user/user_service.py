@@ -377,4 +377,49 @@ class UserService:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="An error occurred while changing password"
-            ) 
+            )
+
+    def update_user_role(self, user_id: int, new_role: str) -> UserResponse:
+        """
+        Update the role of a user.
+        Args:
+            user_id (int): ID of the user
+            new_role (str): New role to assign
+        Returns:
+            UserResponse: Updated user data
+        Raises:
+            HTTPException: If user not found
+        """
+        try:
+            user = self.db.query(User).filter(User.id == user_id).first()
+            if not user:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="User not found"
+                )
+            user.role = new_role
+            user.updated_at = datetime.utcnow()
+            self.db.commit()
+            self.db.refresh(user)
+            return UserResponse.from_orm(user)
+        except HTTPException:
+            raise
+        except Exception as e:
+            self.db.rollback()
+            logger.error(f"Error updating user role: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="An error occurred while updating user role"
+            )
+
+    def get_user_by_email(self, email: str) -> Optional[User]:
+        """
+        Get user by email.
+        
+        Args:
+            email (str): User's email
+            
+        Returns:
+            Optional[User]: User object if found, None otherwise
+        """
+        return self.db.query(User).filter(User.email == email).first() 

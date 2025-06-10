@@ -125,6 +125,10 @@ class Settings(BaseSettings):
         default="your-secret-key",
         description="Secret key"
     )
+    USER_ADMIN: str = Field(
+        default="admin@example.com",
+        description="Admin user email for authorization"
+    )
     BACKEND_CORS_ORIGINS: List[str] = Field(
         default=["*"],
         description="Backend CORS origins"

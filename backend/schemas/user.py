@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr, Field, constr
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 from core.roles import UserRole
 
@@ -149,4 +149,8 @@ class RegisterResponse(BaseModel):
     message: str
     status: str
     user: UserResponse
-    tokens: TokenResponse 
+    tokens: TokenResponse
+
+class ChangeRoleRequest(BaseModel):
+    email: str
+    new_role: str 

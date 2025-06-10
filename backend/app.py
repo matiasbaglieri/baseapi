@@ -8,6 +8,7 @@ from controllers.city_controller import router as city_router
 from controllers.payment import router as payment_router
 from controllers.stripe import subscription_router, subscription_user_router
 from controllers.notification.notification_controller import router as notification_router
+from controllers.user.authorization_controller import router as authorization_router
 from core.init_db import init_db, get_db, drop_db
 from core.utils import parse_json_env_var
 from core.celery_app import celery_app, init_celery, shutdown_celery
@@ -79,6 +80,7 @@ app.include_router(payment_router, prefix="/payments", tags=["payments"])
 app.include_router(subscription_router, prefix="/subscriptions", tags=["subscriptions"])
 app.include_router(subscription_user_router, prefix="/subscription-users", tags=["subscription-users"])
 app.include_router(notification_router, prefix="/notifications", tags=["notifications"])
+app.include_router(authorization_router, prefix="/authz", tags=["authorization"])
 
 if __name__ == "__main__":
     # Server Configuration
