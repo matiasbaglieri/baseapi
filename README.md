@@ -8,6 +8,7 @@
 ![Redis](https://img.shields.io/badge/Redis-6.0+-DC382D?style=for-the-badge&logo=redis&logoColor=white)
 ![Celery](https://img.shields.io/badge/Celery-37814A?style=for-the-badge&logo=celery&logoColor=white)
 ![Mailgun](https://img.shields.io/badge/Mailgun-FF0000?style=for-the-badge&logo=mailgun&logoColor=white)
+![Stripe](https://img.shields.io/badge/Stripe-626CD9?style=for-the-badge&logo=stripe&logoColor=white)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=for-the-badge)](http://makeapullrequest.com)
@@ -21,8 +22,10 @@ BaseAPI is a modern, production-ready backend framework built with FastAPI, desi
 It provides a clean architecture out of the box, featuring user authentication, background task processing, email support, and database integration. Whether you're building an MVP or deploying an enterprise-grade system, BaseAPI gives you the foundation to move fast without compromising on structure or performance.
 
 ### ✅ Perfect For:
+- SaaS applications requiring subscription management
 - Startups needing a clean, extensible backend
 - Teams building APIs for web/mobile apps
+- Projects requiring payment processing
 - Developers who want asynchronous performance and modern Python
 
 ### 🔍 Why BaseAPI?
@@ -30,7 +33,8 @@ It provides a clean architecture out of the box, featuring user authentication, 
 - **Robust structure** built for real-world use cases
 - **Scalable** with Celery + Redis for background jobs
 - **Ready for Docker, Kubernetes, and cloud deployments**
-- **Secure and configurable** out of the box (JWT, Mailgun, .env)
+- **Secure and configurable** out of the box (JWT, Mailgun, Stripe, .env)
+- **Flexible payment options** (Stripe, Bank Check, etc.)
 
 ## ✨ Key Features
 
@@ -39,6 +43,8 @@ It provides a clean architecture out of the box, featuring user authentication, 
 | Feature | Description |
 |:--------|:------------|
 | 🔐 **Authentication** | JWT-based user authentication with session management |
+| 💳 **Payment Processing** | Stripe integration with multiple payment methods |
+| 📊 **Subscription Management** | Flexible subscription plans with status tracking |
 | ⚙️ **Task Processing** | Background tasks with Celery + Redis |
 | 🗃️ **Database** | MySQL support with SQLAlchemy/SQLModel |
 | 📦 **Architecture** | Modular, production-ready project structure |
@@ -56,7 +62,10 @@ baseapi/
 │   ├── alembic/              # Database migrations
 │   ├── controllers/          # API route handlers
 │   │   ├── base.py          # Base routes
-│   │   └── user/            # User-related routes
+│   │   ├── user/            # User-related routes
+│   │   ├── admin/           # Admin routes
+│   │   ├── payment/         # Payment routes
+│   │   └── subscription/    # Subscription routes
 │   ├── core/                # Core functionality
 │   │   ├── celery_app.py    # Celery configuration
 │   │   ├── init_db.py       # Database initialization
@@ -64,15 +73,20 @@ baseapi/
 │   │   └── utils.py         # Utility functions
 │   ├── models/              # SQLAlchemy models
 │   │   ├── user.py         # User model
-│   │   ├── password_reset.py # Password reset model
+│   │   ├── payment.py      # Payment model
+│   │   ├── subscription.py # Subscription model
 │   │   └── session.py      # Session model
-│   ├── tasks/               # Celery tasks
+│   ├── services/           # Business logic
+│   │   ├── stripe/         # Stripe integration
+│   │   ├── payment/        # Payment processing
+│   │   └── subscription/   # Subscription management
+│   ├── tasks/              # Celery tasks
 │   │   └── email_tasks.py  # Email-related tasks
-│   ├── .env                 # Environment variables
-│   ├── app.py              # FastAPI application
-│   ├── requirements.txt    # Python dependencies
-│   └── Makefile           # Build automation
-└── README.md              # Project documentation
+│   ├── .env                # Environment variables
+│   ├── app.py             # FastAPI application
+│   ├── requirements.txt   # Python dependencies
+│   └── Makefile          # Build automation
+└── README.md             # Project documentation
 ```
 
 ## 🚀 Quick Start
@@ -82,6 +96,7 @@ baseapi/
 - Python 3.8+
 - MySQL 8.0+
 - Redis 6.0+
+- Stripe Account
 - Make (for build automation)
 
 ### Installation
@@ -139,10 +154,63 @@ CELERY_RESULT_BACKEND=redis://localhost:6379/0
 # Development Mode
 DEV_MODE=true  # Set to false in production
 
-# Mailgun Configuration (required in production)
+# Mailgun Configuration
 MAILGUN_API_KEY=your-api-key-here
 MAILGUN_DOMAIN=your-domain.com
 MAILGUN_FROM_EMAIL=noreply@your-domain.com
+
+# Stripe Configuration
+STRIPE_API_KEY=your-stripe-secret-key
+STRIPE_WEBHOOK_SECRET=your-stripe-webhook-secret
+STRIPE_PRICE_ID=your-stripe-price-id
+STRIPE_PRODUCT_ID=your-stripe-product-id
+```
+
+## 💳 Payment & Subscription Features
+
+### Stripe Integration
+
+BaseAPI includes comprehensive Stripe integration for handling payments and subscriptions:
+
+1. **Payment Methods**
+   - Credit Card processing
+   - Bank Check support
+   - Multiple currency support
+   - Payment status tracking
+
+2. **Subscription Management**
+   - Multiple subscription tiers
+   - Subscription status tracking
+   - Automatic renewal handling
+   - Proration support
+
+3. **Webhook Handling**
+   - Payment success/failure
+   - Subscription updates
+   - Invoice events
+   - Customer events
+
+### Using Payment Service
+
+```python
+from services.stripe.subscription_user_service import SubscriptionUserService
+
+# Create a subscription with bank check
+subscription_data = {
+    "subscription_id": 123,
+    "payment_type": "bank_check",
+    "amount": 100.00,
+    "currency": "USD"
+}
+result = await subscription_service.create_user_subscription(user_id, subscription_data)
+
+# Create a subscription with Stripe
+subscription_data = {
+    "subscription_id": 123,
+    "payment_type": "stripe",
+    "payment_method_id": "pm_123456"
+}
+result = await subscription_service.create_user_subscription(user_id, subscription_data)
 ```
 
 ## 📧 Email Configuration
@@ -166,43 +234,14 @@ BaseAPI uses Mailgun for sending emails. To set up Mailgun:
    MAILGUN_FROM_EMAIL=noreply@your-domain.com
    ```
 
-4. **Development Mode**
-   - Set `DEV_MODE=true` in `.env` to log emails instead of sending them
-   - Useful for development and testing without Mailgun credentials
-
 ### Available Email Templates
-
-The system includes several email templates:
 
 - Welcome Email
 - Email Verification
 - Password Reset
+- Payment Confirmation
+- Subscription Updates
 - Custom Emails
-
-### Using Email Service
-
-```python
-from core.mail import mail_service
-
-# Send a simple email
-mail_service.send_email(
-    to_email="user@example.com",
-    subject="Hello",
-    body="Welcome to BaseAPI!"
-)
-
-# Send a welcome email (using Celery task)
-from tasks.email_tasks import send_welcome_email
-send_welcome_email.delay("user@example.com", "username")
-```
-
-### Email Features
-
-- 📨 Asynchronous email sending with Celery
-- 📝 HTML and plain text support
-- 🔄 Automatic retries for failed sends
-- 📊 Detailed logging in development mode
-- 🔒 Secure API key handling
 
 ## 🛠️ Usage
 
@@ -217,8 +256,6 @@ make migrate
 ```
 
 ### Makefile Commands
-
-The project includes several useful Makefile commands for development:
 
 ```bash
 # Create virtual environment
@@ -279,6 +316,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 | 🔄 Redis | Message Broker |
 | 🐬 MySQL | Database |
 | 📧 Mailgun | Email Service |
+| 💳 Stripe | Payment Processing |
 
 </div>
 
