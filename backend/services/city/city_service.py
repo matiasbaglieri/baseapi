@@ -262,14 +262,6 @@ class CityService:
             self.db.refresh(db_city)
         return db_city
 
-    def delete_city(self, city_id: int) -> bool:
-        """Delete a city."""
-        db_city = self.get_city(city_id)
-        if db_city:
-            self.db.delete(db_city)
-            self.db.commit()
-            return True
-        return False
 
     def search_cities(self, params: CitySearchParams) -> CitySearchResponse:
         """
